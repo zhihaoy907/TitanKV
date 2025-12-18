@@ -15,6 +15,8 @@ IoContext::IoContext(unsigned entries)
     int ret = io_uring_queue_init_params(entries, &ring_, &params);
     if(ret < 0)
         throw std::runtime_error("io_uring init failed");
+
+    request_pool_.reserve(entries); 
 }
 
 IoContext::~IoContext()
@@ -73,5 +75,4 @@ void IoContext::RunOnce()
     if(count > 0)
         io_uring_cq_advance(&ring_, count);
 }
-
 
