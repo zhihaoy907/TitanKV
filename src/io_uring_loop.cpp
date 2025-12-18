@@ -57,16 +57,23 @@ void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCo
 
 void IoContext::RunOnce()
 {
-    struct io_uring_cqe* cqe;
-    
-    while(io_uring_peek_cqe(&ring_, &cqe) == 0)
+    io_uring_cqe* cqes[URING_CQ_BATCH];
+
+    unsigned count = io_uring_peek_batch_cqe(&ring_, cqes, URING_CQ_BATCH);
+
+    for(unsigned i = 0; i < count; ++i)
     {
-        auto* req = reinterpret_cast<IoRequest*>(io_uring_cqe_get_data(cqe));
+        io_uring_cqe* rqe = cqes[i];
+
+        auto* req = static_cast<IoRequest*>(io_uring_cqe_get_data(rqe));
 
         if(req && req->callback)
-            req->callback(cqe->res);
+            req->callback(rqe->res);
 
         request_pool_.free(req);
-        io_uring_cqe_seen(&ring_, cqe);
     }
+
+    if(count > 0)
+        io_uring_cq_advance(&ring_, count);
 }
+
