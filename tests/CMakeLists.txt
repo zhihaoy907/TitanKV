@@ -13,6 +13,9 @@ target_link_libraries(io_test_debug PRIVATE titankv_core_debug)
 add_executable(bench_io bench_io.cpp)
 target_link_libraries(bench_io PRIVATE titankv_core)
 
+add_executable(test_mutithread test_mutithread.cpp)
+target_link_libraries(test_mutithread PRIVATE titankv_core)
+
 # ==========================================
 # 3. 注册 CTest
 # ==========================================

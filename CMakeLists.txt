@@ -45,6 +45,7 @@ endif()
 set(KV_SOURCES
     src/io/raw_device.cpp
     src/io/io_uring_loop.cpp
+    src/muti_thread/muti_thread.cpp
 )
 
 # ==========================================

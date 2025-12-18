@@ -11,19 +11,22 @@
 #include "io/raw_device.h"
 #include "common/buffer.h"
 
-using namespace titankv;
+TITANKV_NAMESPACE_OPEN
+
+// 最大线程数量
+static unsigned default_thread_num = std::thread::hardware_concurrency();
 
 struct WriteRequest 
 {
-    AlignedBuffer buf;
+    const AlignedBuffer& buf;
     off_t offset;
     std::function<void(int)> callback;
 };
 
-class CoreWorker 
+class MutiThread
 {
 public:
-    CoreWorker(int core_id, const std::string& file_path);
+    MutiThread(const RawDevice& device);
 
     void start();
 
@@ -35,12 +38,14 @@ public:
 private:
     void run();
 
-    int core_id_;
     RawDevice device_;
     IoContext ctx_;
     std::queue<WriteRequest> queue_;
     std::atomic<bool> stop_;
     std::thread thread_;
+    std::mutex queue_mutex_;
 };
+
+TITANKV_NAMESPACE_CLOSE
 
 

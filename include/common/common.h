@@ -13,3 +13,15 @@
 // 3. 命名空间关闭宏
 #define TITANKV_NAMESPACE_CLOSE } 
 
+
+TITANKV_NAMESPACE_OPEN
+
+// 默认cache line字节数
+constexpr unsigned CACHE_LINE_SIZE = 64;
+// 批量处理的cq数量
+constexpr unsigned URING_CQ_BATCH = 32;
+// object pool 默认大小
+constexpr unsigned DEFAULT_OBJECT_SIZE = 128;
+
+
+TITANKV_NAMESPACE_CLOSE
