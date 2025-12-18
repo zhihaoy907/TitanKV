@@ -31,10 +31,11 @@ void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCo
     // 忙等待处理：如果队列满了 (返回 nullptr)
     while (!sqe) 
     {
-        // 手动提交当前所有积压的请求，催促内核处理
-        io_uring_submit(&ring_); 
-        
-        // RunOnce();
+        // 让 io_uring自己的 sqpoll 来自动处理
+        // io_uring_submit(&ring_);
+
+        // 尝试释放 sq
+        RunOnce();
         
         // 再次尝试获取
         sqe = io_uring_get_sqe(&ring_);
@@ -50,23 +51,22 @@ void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCo
     io_uring_prep_writev(sqe, fd, &req->iov, 1, offset);
     io_uring_sqe_set_data(sqe, req);
     
-    // 后续考虑批量提交
-    io_uring_submit(&ring_);
+    // 同上
+    // io_uring_submit(&ring_);
 }
 
 void IoContext::RunOnce()
 {
     struct io_uring_cqe* cqe;
-    int ret = io_uring_peek_cqe(&ring_, &cqe);
-
-    if(ret == 0)
+    
+    while(io_uring_peek_cqe(&ring_, &cqe) == 0)
     {
         auto* req = reinterpret_cast<IoRequest*>(io_uring_cqe_get_data(cqe));
+
         if(req && req->callback)
-        {
             req->callback(cqe->res);
-        }
+
         request_pool_.free(req);
-        io_uring_cqe_seen(&ring_,cqe);
-    }    
+        io_uring_cqe_seen(&ring_, cqe);
+    }
 }
