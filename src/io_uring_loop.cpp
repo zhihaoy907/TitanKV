@@ -31,9 +31,6 @@ void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCo
     // 忙等待处理：如果队列满了 (返回 nullptr)
     while (!sqe) 
     {
-        // 让 io_uring自己的 sqpoll 来自动处理
-        // io_uring_submit(&ring_);
-
         // 尝试释放 sq
         RunOnce();
         
@@ -51,8 +48,8 @@ void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCo
     io_uring_prep_writev(sqe, fd, &req->iov, 1, offset);
     io_uring_sqe_set_data(sqe, req);
     
-    // 同上
-    // io_uring_submit(&ring_);
+    // 还是需要提交
+    io_uring_submit(&ring_);
 }
 
 void IoContext::RunOnce()
@@ -76,4 +73,5 @@ void IoContext::RunOnce()
     if(count > 0)
         io_uring_cq_advance(&ring_, count);
 }
+
 
