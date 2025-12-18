@@ -43,8 +43,8 @@ endif()
 # ==========================================
 # 将源文件保存到变量，方便给两个 Target 复用
 set(KV_SOURCES
-    src/raw_device.cpp
-    src/io_uring_loop.cpp
+    src/io/raw_device.cpp
+    src/io/io_uring_loop.cpp
 )
 
 # ==========================================
