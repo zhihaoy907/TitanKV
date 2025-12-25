@@ -54,6 +54,7 @@ void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCo
     io_uring_submit(&ring_);
 }
 
+// 批处理
 void IoContext::RunOnce()
 {
     io_uring_cqe* cqes[URING_CQ_BATCH];
@@ -76,3 +77,8 @@ void IoContext::RunOnce()
         io_uring_cq_advance(&ring_, count);
 }
 
+// 手动触发系统调用
+void IoContext::Submit() 
+{
+    io_uring_submit(&ring_);
+}

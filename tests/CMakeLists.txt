@@ -16,6 +16,11 @@ target_link_libraries(bench_io PRIVATE titankv_core)
 add_executable(test_mutithread test_mutithread.cpp)
 target_link_libraries(test_mutithread PRIVATE titankv_core)
 
+add_executable(test_SPSCQueue test_SPSCQueue.cpp)
+target_link_libraries(test_SPSCQueue PRIVATE titankv_core)
+
+
+
 # ==========================================
 # 3. 注册 CTest
 # ==========================================

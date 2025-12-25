@@ -31,6 +31,8 @@ public:
 
     void RunOnce();
 
+    void Submit();
+
 private:
     struct io_uring ring_;
     ObjectPool<IoRequest> request_pool_; 

@@ -19,9 +19,15 @@ TITANKV_NAMESPACE_OPEN
 // 默认cache line字节数
 constexpr unsigned CACHE_LINE_SIZE = 64;
 // 批量处理的cq数量
-constexpr unsigned URING_CQ_BATCH = 32;
+constexpr unsigned URING_CQ_BATCH = 64;
 // object pool 默认大小
 constexpr unsigned DEFAULT_OBJECT_SIZE = 128;
+
+#ifdef __has_cpp_attribute
+#if __has_cpp_attribute(nodiscard)
+#define TITANKV_NODISCARD [[nodiscard]]
+#endif
+#endif
 
 
 TITANKV_NAMESPACE_CLOSE

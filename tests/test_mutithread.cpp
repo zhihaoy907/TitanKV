@@ -48,7 +48,7 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
                         });
         pending_ios++;
 
-        if (pending_ios > 4000) 
+        if(pending_ios > 4000) 
         {
             ctx.RunOnce();
             pending_ios--;
@@ -79,13 +79,15 @@ void bench_titankv_mutithread(const std::vector<off_t>& offsets, const AlignedBu
     RawDevice device(FILE_PATH);
     unsigned total = offsets.size();
     
+    // 留出两个核给主线程、SQPOLL线程,避免频繁切换
+    unsigned real_thread_num = default_thread_num - 2;
     std::vector<std::unique_ptr<MutiThread>> workers;
-    workers.reserve(default_thread_num);
-    for(unsigned i = 0; i < default_thread_num; i++) 
+    workers.reserve(real_thread_num);
+    for(unsigned i = real_thread_num; i < default_thread_num; i++) 
         workers.emplace_back(std::make_unique<MutiThread>(device));
 
-    for(auto& w : workers)
-        w->start();
+    for(size_t k = 0; k < workers.size(); k++) 
+        workers[k]->start(real_thread_num + k);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -104,14 +106,14 @@ void bench_titankv_mutithread(const std::vector<off_t>& offsets, const AlignedBu
     while(completed_ios.load(std::memory_order_relaxed) < total)
         std::this_thread::yield();
 
-    for(unsigned i = 0;i < default_thread_num; i++)
+    for(unsigned i = 0;i < workers.size(); i++)
         workers[i]->stop();
 
     auto end = std::chrono::high_resolution_clock::now();
 
     double elapsed_sec = std::chrono::duration<double>(end - start).count();
     double iops = total / elapsed_sec;
-    std::cout << "Total thread num: " << default_thread_num << " | [TitanKV Uring] Time: " << elapsed_sec << "s | IOPS: " << iops 
+    std::cout << "Total thread num: " << real_thread_num << " | [TitanKV Uring] Time: " << elapsed_sec << "s | IOPS: " << iops 
               << " | Latency (Amortized): " << (elapsed_sec / total) * 1e6 << " us/op" << std::endl;
 }
 

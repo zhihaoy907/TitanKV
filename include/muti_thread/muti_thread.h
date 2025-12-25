@@ -28,7 +28,7 @@ class MutiThread
 public:
     MutiThread(const RawDevice& device);
 
-    void start();
+    void start(unsigned core_id);
 
     void stop();
 
