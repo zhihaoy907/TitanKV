@@ -1,3 +1,10 @@
+/*
+测试基于CPU亲和性的多线程的IO的代码，此时性能瓶颈在锁的竞争。
+基于SPSC队列的无锁版本参考SPSC的test代码。
+此代码仍有性能瓶颈，主要体现在可以通过批量释放，而不是每次提交之后都释放
+多次测试相较单线程，两线程将时间从8.x秒降低至4.x秒
+*/
+
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -30,7 +37,6 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
     // 测试队列
     IoContext ctx(4096); 
 
-    int pending_ios = 0;
     int completed_ios = 0;
     int total = offsets.size();
 
@@ -46,13 +52,6 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
                             if (res < 0) std::cerr << "Async write error" << std::endl;
                             completed_ios++;
                         });
-        pending_ios++;
-
-        if(pending_ios > 4000) 
-        {
-            ctx.RunOnce();
-            pending_ios--;
-        }
     }
 
     // 等待剩余所有的 IO 完成
