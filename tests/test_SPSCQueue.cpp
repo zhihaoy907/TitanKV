@@ -11,11 +11,13 @@
 #include <unistd.h>
 #include <iomanip>
 #include <cstring>
+#include <immintrin.h>
 
 #include "io/io_uring_loop.h"
 #include "io/raw_device.h"
 #include "common/buffer.h"
 #include "muti_thread/muti_thread.h"
+#include "muti_thread/core_worker.h"
 
 using namespace titankv;
 
@@ -84,10 +86,10 @@ void bench_titankv_spscqueue(const std::vector<off_t>& offsets, const AlignedBuf
     
     // 留出两个核给主线程、SQPOLL线程,避免频繁切换
     unsigned real_thread_num = default_thread_num - 2;
-    std::vector<std::unique_ptr<MutiThread>> workers;
+    std::vector<std::unique_ptr<CoreWorker>> workers;
     workers.reserve(real_thread_num);
     for(unsigned i = real_thread_num; i < default_thread_num; i++) 
-        workers.emplace_back(std::make_unique<MutiThread>(device));
+        workers.emplace_back(std::make_unique<CoreWorker>(device));
 
     for(size_t k = 0; k < workers.size(); k++) 
         workers[k]->start(real_thread_num + k);
@@ -97,13 +99,16 @@ void bench_titankv_spscqueue(const std::vector<off_t>& offsets, const AlignedBuf
     for(unsigned i = 0; i < total; ++i)
     {
         size_t w = i % workers.size();
-        workers[w]->submit(WriteRequest{
-            buf,
-            offsets[i],
-            [&](int /*res*/){
-                completed_ios.fetch_add(1, std::memory_order_relaxed);
-            }
-        });
+        while(workers[w]->submit(WriteRequest{
+            buf, offsets[i],[&](int /*res*/){completed_ios.fetch_add(1, std::memory_order_relaxed);}
+        }))
+        {
+            #if defined(__x86_64__)
+            _mm_pause();
+            #endif
+        }
+
+        
     }
 
     while(completed_ios.load(std::memory_order_relaxed) < total)

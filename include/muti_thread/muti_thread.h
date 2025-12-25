@@ -1,8 +1,8 @@
+#pragma once
 #include <thread>
 #include <vector>
 #include <queue>
 #include <atomic>
-#include <functional>
 #include <memory>
 #include <iostream>
 #include <unistd.h>
@@ -10,18 +10,9 @@
 #include "io/io_uring_loop.h"
 #include "io/raw_device.h"
 #include "common/buffer.h"
+#include "common.h"
 
 TITANKV_NAMESPACE_OPEN
-
-// 最大线程数量
-static unsigned default_thread_num = std::thread::hardware_concurrency();
-
-struct WriteRequest 
-{
-    const AlignedBuffer& buf;
-    off_t offset;
-    std::function<void(int)> callback;
-};
 
 class MutiThread
 {

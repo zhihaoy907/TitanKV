@@ -7,9 +7,11 @@ using namespace titankv;
 
 CoreWorker::CoreWorker(const RawDevice& device)
 : device_(device), ctx_(4096), stop_(false)
-{}
+{
+    queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(URING_CQ_BATCH);
+}
  
-TITANKV_NODISCARD bool CoreWorker::start(unsigned core_id)
+void CoreWorker::start(unsigned core_id)
 {
     if(thread_.joinable())
         thread_.join();    
@@ -40,48 +42,22 @@ void CoreWorker::stop()
 
 TITANKV_NODISCARD bool  CoreWorker::submit(WriteRequest req) 
 {
-    return queue_.try_push(std::move(req));
+    return queue_->try_push(std::move(req));
 }
 
 void CoreWorker::run() 
 {
     while(!stop_) 
     {
-        bool busy = false;
-        while(auto *req = queue_.front())
-        {
-            busy = true;
-            ctx_.SubmitWrite(device_.fd(), req->buf, req->offset, req->callback);
-
-            queue_.pop();
-        }
-        ctx_.RunOnce();
-    }
-}
-
-void CoreWorker::run() 
-{
-    while(!stop_) 
-    {
-        int count = 0;
-        
-        // 批量从队列取数据，但限制最大数量
-        while(count < URING_CQ_BATCH)
-        {
-            auto* req = queue_.front();
-            // 队列空了，退出内层循环
-            if (!req) break;            
-
-            // 仅仅是填入 SQE，不触发系统调用
-            ctx_.SubmitWrite(device_.fd(), req->buf, req->offset, req->callback);
+        // 确保 SubmitWrite 只做 io_uring_prep_write，不要调用 submit
+        auto req = queue_->front();
+        ctx_.SubmitWrite(device_.fd(), req->buf, req->offset, req->callback);
+        queue_->pop();
             
-            queue_.pop();
-            count++;
-        }
-
-        if (count > 0)
-            ctx_.RunOnce(); 
-        else
-            std::this_thread::yield(); 
+        // 批量填装完后，调用一次系统调用
+        ctx_.Submit(); 
     }
+
+    // 处理完成事件
+    ctx_.RunOnce();
 }
