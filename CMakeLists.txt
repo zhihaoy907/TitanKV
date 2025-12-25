@@ -59,7 +59,8 @@ set(KV_SOURCES
 add_library(titankv_core STATIC ${KV_SOURCES})
 
 # 编译选项：优化满上
-target_compile_options(titankv_core PRIVATE -O3 -march=native)
+target_compile_options(titankv_core PRIVATE -O0 -march=native)
+# target_compile_options(titankv_core PRIVATE -O3 -march=native)
 
 # 头文件路径
 target_include_directories(titankv_core PUBLIC 

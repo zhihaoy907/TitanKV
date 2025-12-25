@@ -1,6 +1,6 @@
 /*
 基于已有环境：IO_URING、CPU亲和性，测试SPSC无锁队列相较普通的带锁队列的程序，
-在多次测试中SPSCQueue把时间从5.x秒缩短至4.x秒，平均提升约20%的性能
+在多次八核六线程的测试中SPSCQueue把时间从1.7秒缩短至1.4秒，平均提升约18%的性能
 */
 
 #include <iostream>
@@ -38,7 +38,7 @@ void bench_titankv_mutithread(const std::vector<off_t>& offsets, const AlignedBu
     unsigned total = offsets.size();
     
     // 留出两个核给主线程、SQPOLL线程,避免频繁切换
-    unsigned real_thread_num = default_thread_num - 2;
+    unsigned real_thread_num = (default_thread_num > 2) ? (default_thread_num - 2) : 1;
     std::vector<std::unique_ptr<MutiThread>> workers;
     workers.reserve(real_thread_num);
     for(unsigned i = real_thread_num; i < default_thread_num; i++) 
@@ -85,7 +85,7 @@ void bench_titankv_spscqueue(const std::vector<off_t>& offsets, const AlignedBuf
     unsigned total = offsets.size();
     
     // 留出两个核给主线程、SQPOLL线程,避免频繁切换
-    unsigned real_thread_num = default_thread_num - 2;
+    unsigned real_thread_num = (default_thread_num > 2) ? (default_thread_num - 2) : 1;
     std::vector<std::unique_ptr<CoreWorker>> workers;
     workers.reserve(real_thread_num);
     for(unsigned i = real_thread_num; i < default_thread_num; i++) 
@@ -99,7 +99,7 @@ void bench_titankv_spscqueue(const std::vector<off_t>& offsets, const AlignedBuf
     for(unsigned i = 0; i < total; ++i)
     {
         size_t w = i % workers.size();
-        while(workers[w]->submit(WriteRequest{
+        while(!workers[w]->submit(WriteRequest{
             buf, offsets[i],[&](int /*res*/){completed_ios.fetch_add(1, std::memory_order_relaxed);}
         }))
         {

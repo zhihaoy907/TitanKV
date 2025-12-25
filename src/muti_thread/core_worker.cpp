@@ -1,6 +1,7 @@
 #include "muti_thread/core_worker.h"
 
 #include <optional>
+#include <immintrin.h>
 
 
 using namespace titankv;
@@ -49,15 +50,29 @@ void CoreWorker::run()
 {
     while(!stop_) 
     {
-        // 确保 SubmitWrite 只做 io_uring_prep_write，不要调用 submit
-        auto req = queue_->front();
-        ctx_.SubmitWrite(device_.fd(), req->buf, req->offset, req->callback);
-        queue_->pop();
-            
-        // 批量填装完后，调用一次系统调用
-        ctx_.Submit(); 
-    }
+        ctx_.RunOnce();
 
-    // 处理完成事件
-    ctx_.RunOnce();
+        unsigned moved = 0;
+        while(moved < URING_CQ_BATCH)
+        {
+            auto req = queue_->front();
+            if(!req) break;
+
+            ctx_.SubmitWrite(device_.fd(), req->buf, req->offset, req->callback);
+            queue_->pop();
+            moved++;
+        }
+        
+        if(moved > 0)
+        {
+            ctx_.Submit(); 
+        }
+        else
+        {
+            #if defined(__x86_64__)
+            _mm_pause();
+            #endif
+        }
+        
+    }
 }
