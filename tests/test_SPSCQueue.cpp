@@ -103,11 +103,11 @@ void bench_titankv_spscqueue(const std::vector<off_t>& offsets, const AlignedBuf
             buf, offsets[i],[&](int /*res*/){completed_ios.fetch_add(1, std::memory_order_relaxed);}
         }))
         {
-            // #if defined(__x86_64__)
-            // _mm_pause();
-            // #endif
+            #if defined(__x86_64__)
+            _mm_pause();
+            #endif
             // 资源紧张环境下yield可能更友好
-            std::this_thread::yield(); 
+            // std::this_thread::yield(); 
         }
 
         

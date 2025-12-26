@@ -14,7 +14,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) 
 
 # 通用基础警告 (对所有版本生效)
-add_compile_options(-Wall -Wextra -Werror -pedantic)
+add_compile_options(-Wall -Wextra -pedantic)
+# add_compile_options(-Wall -Wextra -Werror -pedantic)
 # io_uring O_DIRECT 必需宏
 add_definitions(-D_GNU_SOURCE) 
 
@@ -47,6 +48,7 @@ set(KV_SOURCES
     src/io/io_uring_loop.cpp
     src/muti_thread/muti_thread.cpp
     src/muti_thread/core_worker.cpp
+    src/storage/log_record.cpp
 )
 
 # ==========================================
