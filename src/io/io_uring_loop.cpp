@@ -10,7 +10,9 @@ IoContext::IoContext(unsigned entries)
     memset(&params, 0, sizeof(params));
 
     // 开启内核轮询(SQPOLL),如果机器内核不支持，先注释
-    params.flags |= IORING_SETUP_SQPOLL;
+    // 针对资源比较紧张的情况下先注释掉，
+    // 减少内核线程抢占用户态线程，增加测试稳定性
+    // params.flags |= IORING_SETUP_SQPOLL;
 
     int ret = io_uring_queue_init_params(entries, &ring_, &params);
     if(ret < 0)
