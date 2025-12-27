@@ -1,3 +1,8 @@
+/*
+io_uring的性能测试。
+使用io_uring较使用pwrite接口在10w次io测试中
+将时间从12.x秒降至8.x秒
+*/
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -64,7 +69,7 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
     // 测试队列
     IoContext ctx(4096); 
 
-    int pending_ios = 0;
+    // int pending_ios = 0;
     int completed_ios = 0;
     int total = offsets.size();
 
@@ -80,13 +85,13 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
                             if (res < 0) std::cerr << "Async write error" << std::endl;
                             completed_ios++;
                         });
-        pending_ios++;
+        // pending_ios++;
 
-        if (pending_ios > 4000) 
-        {
-            ctx.RunOnce();
-            pending_ios--;
-        }
+        // if (pending_ios > 4000) 
+        // {
+        //     ctx.RunOnce();
+        //     pending_ios--;
+        // }
     }
 
     // 等待剩余所有的 IO 完成
