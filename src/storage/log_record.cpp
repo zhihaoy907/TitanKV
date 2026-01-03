@@ -20,12 +20,13 @@ void LogRecord::encode(std::string_view key,
     header->key_len = static_cast<uint32_t>(key.size());
     header->val_len = static_cast<uint32_t>(val.size());
     header->type = type;
-    header->crc = 0;
 
     ptr += sizeof(LogHeader);
+    std::memcpy(ptr, key.data(), key.size());
 
+    ptr += key.size();
     std::memcpy(ptr, val.data(), val.size());
-}
+} 
 
 
 uint32_t LogRecord::calculate_crc(const uint8_t* data, size_t len) 

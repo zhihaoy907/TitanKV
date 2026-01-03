@@ -13,3 +13,9 @@ target_link_libraries(test_mutithread PRIVATE titankv_core)
 # 3. 基于SPSCQueue的性能测试
 add_executable(test_SPSCQueue test_SPSCQueue.cpp)
 target_link_libraries(test_SPSCQueue PRIVATE titankv_core)
+
+# 4. log 类的功能性测试
+add_executable(test_log_format test_log_format.cpp)
+target_link_libraries(test_log_format PRIVATE titankv_core)
+
+
