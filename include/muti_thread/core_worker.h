@@ -15,6 +15,16 @@
 
 TITANKV_NAMESPACE_OPEN
 
+// 内存索引：Key -> 物理位置
+struct KeyLocation 
+{
+    // 文件中的偏移量
+    uint64_t offset;
+    // 数据总长度 (Header + Key + Value)
+    uint32_t len;
+};
+
+
 class CoreWorker
 {
 public:
@@ -29,7 +39,8 @@ public:
 private:
     void run();
 
-    std::unique_ptr<rigtorp::SPSCQueue<WriteRequest>> queue_; 
+    std::unique_ptr<rigtorp::SPSCQueue<ReadRequest>> read_queue_; 
+    std::unique_ptr<rigtorp::SPSCQueue<WriteRequest>> write_queue_; 
     std::unique_ptr<RawDevice> device_;
     std::atomic<bool> stop_;
     std::thread thread_;
@@ -37,6 +48,7 @@ private:
     unsigned current_offset_;
     // 资源隔离：每个 Worker 独享一个 io_uring
     IoContext ctx_;
+    std::unordered_map<std::string, KeyLocation> index_;
 };
 
 TITANKV_NAMESPACE_CLOSE

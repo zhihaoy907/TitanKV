@@ -26,6 +26,36 @@ IoContext::~IoContext()
     io_uring_queue_exit(&ring_);
 }
 
+void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len, IoCompletionCallback cb)
+{
+    // 尝试获取 SQE
+    struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
+    
+    // 忙等待处理：如果队列满了 (返回 nullptr)
+    while (!sqe) 
+    {
+        // 尝试释放 sq
+        RunOnce();
+        
+        // 再次尝试获取
+        sqe = io_uring_get_sqe(&ring_);
+    }
+
+    auto* req = request_pool_.alloc();
+    req->held_buffer = std::move(buf);
+    req->iov.iov_base = req->held_buffer.data();
+    req->iov.iov_len  = len;
+    assert(req->iov.iov_base != nullptr);
+
+    req->offset = offset;
+    req->callback = std::move(cb);
+
+    io_uring_prep_readv(sqe, fd, &req->iov, 1, offset);
+    io_uring_sqe_set_data(sqe, req);
+    
+    io_uring_submit(&ring_);
+}
+
 
 void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, IoCompletionCallback cb) 
 {

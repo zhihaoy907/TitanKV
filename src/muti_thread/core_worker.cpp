@@ -8,14 +8,14 @@
 using namespace titankv;
 
 CoreWorker::CoreWorker(unsigned core_id, const std::string& file_path)
-: core_id_(core_id), ctx_(4096), stop_(false)
+: stop_(false), core_id_(core_id), ctx_(4096)
 {    
     std::string filename = file_path + "/data_" + std::to_string(core_id) + ".log";
     device_ = std::make_unique<RawDevice>(filename);
 
     current_offset_ = 0;
 
-    queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(URING_CQ_BATCH);
+    write_queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(URING_CQ_BATCH);
 }
  
 void CoreWorker::start()
@@ -49,7 +49,7 @@ void CoreWorker::stop()
 
 void  CoreWorker::submit(WriteRequest req)
 {
-    while (!queue_->try_push(std::move(req))) 
+    while (!write_queue_->try_push(std::move(req))) 
     {
         #if defined(__x86_64__)
         _mm_pause();
@@ -63,9 +63,12 @@ void CoreWorker::run()
     {
         ctx_.RunOnce();
 
-        while(auto* req = queue_->front())
+        while(auto* req = write_queue_->front())
         {
             off_t write_pos = current_offset_;
+            uint32_t entry_size = req->buf.size();
+            // 更新内存索引
+            index_[std::move(req->key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
 
             ctx_.SubmitWrite(device_->fd(), std::move(req->buf), write_pos, [req](int res)
                 {
@@ -73,7 +76,7 @@ void CoreWorker::run()
                         req->callback(res);
                 });
             current_offset_ += req->buf.size();
-            queue_->pop();
+            write_queue_->pop();
         }
     }
 }

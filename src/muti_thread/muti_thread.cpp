@@ -40,8 +40,8 @@ void MutiThread::stop()
 
 void MutiThread::submit(WriteRequest req) 
 {
-    std::lock_guard<std::mutex> lock(queue_mutex_);
-    queue_.push(std::move(req));
+    std::lock_guard<std::mutex> lock(write_queue_mutex_);
+    write_queue_.push(std::move(req));
 }
 
 
@@ -52,11 +52,11 @@ void MutiThread::submit(WriteRequest req)
 //         unsigned count = 0;
 //         // 每64次提交调用一次系统接口批处理
 //         {
-//             std::lock_guard<std::mutex> lock(queue_mutex_);
-//             while(!queue_.empty() && count < URING_CQ_BATCH) 
+//             std::lock_guard<std::mutex> lock(write_queue_mutex_);
+//             while(!write_queue_.empty() && count < URING_CQ_BATCH) 
 //             {
-//                 auto req = std::move(queue_.front());
-//                 queue_.pop();
+//                 auto req = std::move(write_queue_.front());
+//                 write_queue_.pop();
 //                 // 仅填入 SQ Ring，不立即 syscall
 //                 ctx_.SubmitWrite(device_.fd(), req.buf, req.offset, req.callback);
 //                 count++;
@@ -84,11 +84,11 @@ void MutiThread::run()
         bool busy = false;
         // 只负责从 std::queue 搬运指针
         {
-            std::lock_guard<std::mutex> lock(queue_mutex_);
-            while(!queue_.empty() && local_batch.size() < URING_CQ_BATCH) 
+            std::lock_guard<std::mutex> lock(write_queue_mutex_);
+            while(!write_queue_.empty() && local_batch.size() < URING_CQ_BATCH) 
             {
-                local_batch.emplace_back(std::move(queue_.front()));
-                queue_.pop();
+                local_batch.emplace_back(std::move(write_queue_.front()));
+                write_queue_.pop();
             }
         }
 

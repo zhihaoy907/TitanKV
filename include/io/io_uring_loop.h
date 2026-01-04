@@ -33,6 +33,12 @@ public:
                     off_t offset, 
                     IoCompletionCallback cb);
 
+    void SubmitRead(int fd, 
+                    AlignedBuffer&& buf, 
+                    off_t offset, 
+                    size_t len, 
+                    IoCompletionCallback cb);
+
     void RunOnce();
 
     void Submit();

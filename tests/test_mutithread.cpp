@@ -39,7 +39,6 @@ void bench_titankv(const std::vector<off_t>& offsets)
     AlignedBuffer template_buf(IO_SIZE);
     std::memset(template_buf.data(), 'K', IO_SIZE); 
 
-    // int pending_ios = 0;
     int completed_ios = 0;
     int total = offsets.size();
 
@@ -58,13 +57,6 @@ void bench_titankv(const std::vector<off_t>& offsets)
                             if (res < 0) std::cerr << "Async write error" << std::endl;
                             completed_ios++;
                         });
-        // pending_ios++;
-
-        // if (pending_ios > 4000) 
-        // {
-        //     ctx.RunOnce();
-        //     pending_ios--;
-        // }
     }
 
     // 等待剩余所有的 IO 完成

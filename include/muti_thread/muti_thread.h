@@ -31,10 +31,10 @@ private:
 
     RawDevice device_;
     IoContext ctx_;
-    std::queue<WriteRequest> queue_;
+    std::queue<WriteRequest> write_queue_;
     std::atomic<bool> stop_;
     std::thread thread_;
-    std::mutex queue_mutex_;
+    std::mutex write_queue_mutex_;
 };
 
 TITANKV_NAMESPACE_CLOSE
