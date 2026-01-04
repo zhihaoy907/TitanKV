@@ -2,25 +2,31 @@
 
 #include <optional>
 #include <immintrin.h>
+#include <filesystem>
 
 
 using namespace titankv;
 
-CoreWorker::CoreWorker(const RawDevice& device)
-: device_(device), ctx_(4096), stop_(false)
-{
+CoreWorker::CoreWorker(unsigned core_id, const std::string& file_path)
+: core_id_(core_id), ctx_(4096), stop_(false)
+{    
+    std::string filename = file_path + "/data_" + std::to_string(core_id) + ".log";
+    device_ = std::make_unique<RawDevice>(filename);
+
+    current_offset_ = 0;
+
     queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(URING_CQ_BATCH);
 }
  
-void CoreWorker::start(unsigned core_id)
+void CoreWorker::start()
 {
     if(thread_.joinable())
         thread_.join();    
 
-    thread_ = std::thread([this, core_id]{ 
+    thread_ = std::thread([this]{ 
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
-        CPU_SET(core_id, &cpuset);
+        CPU_SET(core_id_, &cpuset);
 
         // auto handle = thread_.native_handle();
         auto handle = pthread_self();
@@ -41,38 +47,33 @@ void CoreWorker::stop()
         thread_.join();
 }
 
-TITANKV_NODISCARD bool  CoreWorker::submit(WriteRequest req) 
+void  CoreWorker::submit(WriteRequest req)
 {
-    return queue_->try_push(std::move(req));
+    while (!queue_->try_push(std::move(req))) 
+    {
+        #if defined(__x86_64__)
+        _mm_pause();
+        #endif
+    }
 }
 
 void CoreWorker::run() 
 {
-    while(!stop_) 
+    while(!stop_)
     {
         ctx_.RunOnce();
 
-        unsigned moved = 0;
-        while(moved < URING_CQ_BATCH)
+        while(auto* req = queue_->front())
         {
-            auto req = queue_->front();
-            if(!req) break;
+            off_t write_pos = current_offset_;
 
-            ctx_.SubmitWrite(device_.fd(), req->buf, req->offset, req->callback);
+            ctx_.SubmitWrite(device_->fd(), std::move(req->buf), write_pos, [req](int res)
+                {
+                    if(req->callback)
+                        req->callback(res);
+                });
+            current_offset_ += req->buf.size();
             queue_->pop();
-            moved++;
         }
-        
-        if(moved > 0)
-        {
-            ctx_.Submit(); 
-        }
-        else
-        {
-            #if defined(__x86_64__)
-            _mm_pause();
-            #endif
-        }
-        
     }
 }

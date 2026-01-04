@@ -31,12 +31,15 @@ const std::string FILE_PATH = "bench_file.dat";
 // ---------------------------------------------------------
 // 1. TitanKV (Async, Ring Batching)
 // ---------------------------------------------------------
-void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf) 
+void bench_titankv(const std::vector<off_t>& offsets) 
 {
     RawDevice device(FILE_PATH);
     // 测试队列
-    IoContext ctx(4096); 
+    IoContext ctx(4096);
+    AlignedBuffer template_buf(IO_SIZE);
+    std::memset(template_buf.data(), 'K', IO_SIZE); 
 
+    // int pending_ios = 0;
     int completed_ios = 0;
     int total = offsets.size();
 
@@ -44,14 +47,24 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
 
     for (int i = 0; i < total; ++i) 
     {
+        AlignedBuffer req_buf(IO_SIZE);
+        std::memcpy(req_buf.data(), template_buf.data(), IO_SIZE);
+        
         ctx.SubmitWrite(device.fd(), 
-                        buf, 
+                        std::move(req_buf), 
                         offsets[i], 
                         [&](int res) 
                         {
                             if (res < 0) std::cerr << "Async write error" << std::endl;
                             completed_ios++;
                         });
+        // pending_ios++;
+
+        // if (pending_ios > 4000) 
+        // {
+        //     ctx.RunOnce();
+        //     pending_ios--;
+        // }
     }
 
     // 等待剩余所有的 IO 完成
@@ -72,11 +85,14 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
 // ---------------------------------------------------------
 // 2. TitanKV muti_thread (Async, Ring Batching)
 // ---------------------------------------------------------
-void bench_titankv_mutithread(const std::vector<off_t>& offsets, const AlignedBuffer& buf) 
+void bench_titankv_mutithread(const std::vector<off_t>& offsets) 
 {
     std::atomic<unsigned> completed_ios{0};
     RawDevice device(FILE_PATH);
     unsigned total = offsets.size();
+
+    AlignedBuffer template_buf(IO_SIZE);
+    std::memset(template_buf.data(), 'K', IO_SIZE);
     
     // 留出两个核给主线程、SQPOLL线程,避免频繁切换
     unsigned real_thread_num = default_thread_num - 2;
@@ -93,8 +109,11 @@ void bench_titankv_mutithread(const std::vector<off_t>& offsets, const AlignedBu
     for(unsigned i = 0; i < total; ++i)
     {
         size_t w = i % workers.size();
+        AlignedBuffer req_buf(IO_SIZE);
+        std::memcpy(req_buf.data(), template_buf.data(), IO_SIZE);
+
         workers[w]->submit(WriteRequest{
-            buf,
+            std::move(req_buf),
             offsets[i],
             [&](int /*res*/){
                 completed_ios.fetch_add(1, std::memory_order_relaxed);
@@ -124,10 +143,6 @@ int main()
     int ret = system("dd if=/dev/zero of=bench_file.dat bs=1G count=1 > /dev/null 2>&1");
     (void)ret;
 
-    // 准备数据 buffer (内存对齐)
-    AlignedBuffer buf(IO_SIZE);
-    memset(buf.data(), 'K', IO_SIZE);
-
     // 随机生成 10万 个写入偏移量，确保两次测试位置一样
     std::cout << "Generating " << TOTAL_IOS << " random offsets..." << std::endl;
     std::vector<off_t> offsets;
@@ -148,9 +163,9 @@ int main()
     std::cout << "=========================================" << std::endl;
 
     // 运行测试
-    bench_titankv(offsets, buf);
+    bench_titankv(offsets);
     std::cout << "-----------------------------------------" << std::endl;
-    bench_titankv_mutithread(offsets, buf);
+    bench_titankv_mutithread(offsets);
 
     return 0;
 }

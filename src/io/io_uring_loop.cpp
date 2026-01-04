@@ -27,7 +27,7 @@ IoContext::~IoContext()
 }
 
 
-void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCompletionCallback cb) 
+void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, IoCompletionCallback cb) 
 {
     // 尝试获取 SQE
     struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
@@ -48,6 +48,8 @@ void IoContext::SubmitWrite(int fd, const AlignedBuffer& buf, off_t offset, IoCo
     req->callback = std::move(cb);
     req->iov.iov_base = buf.data();
     req->iov.iov_len = buf.size();
+    req->held_buffer = std::move(buf);
+    assert(req->iov.iov_base != nullptr);
 
     io_uring_prep_writev(sqe, fd, &req->iov, 1, offset);
     io_uring_sqe_set_data(sqe, req);

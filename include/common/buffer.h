@@ -14,7 +14,7 @@ public:
     
     static constexpr size_t kAlignment = 4096;
 
-    AlignedBuffer(size_t size) : size_(size)
+    AlignedBuffer(size_t size = kAlignment) : size_(size)
     {
         // posix_memalign 分配对齐内存
         if(posix_memalign((void**)&data_, kAlignment, size_) != 0)
@@ -35,6 +35,7 @@ public:
     AlignedBuffer(AlignedBuffer&& other) noexcept: data_(other.data_), size_(other.size_)
     {
         other.data_ = nullptr;
+        other.size_ = 0;
     }
 
     uint8_t *data() const
@@ -45,6 +46,22 @@ public:
     size_t size() const
     {
         return size_;
+    }
+
+    AlignedBuffer& operator=(AlignedBuffer&& other) noexcept
+    {
+        if(this != &other)
+        {
+            if(data_)
+                free(data_);
+
+            data_ = other.data_;
+            size_ = other.size_;
+
+            other.data_ = nullptr;
+            other.size_ = 0;
+        }
+        return *this;
     }
 
 private:

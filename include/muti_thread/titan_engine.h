@@ -3,7 +3,12 @@
 #include <vector>
 #include <memory>
 #include <immintrin.h>
+#include <functional>
+#include <cstring>
+
 #include "core_worker.h"
+#include "storage/log_entry.h"
+#include "muti_thread/common.h"
 
 TITANKV_NAMESPACE_OPEN
 
@@ -26,21 +31,31 @@ public:
             w->stop();
     }
 
-    void write(const AlignedBuffer& buf, off_t offset, std::function<void(int)> cb)
+    void write(AlignedBuffer&& buf, off_t offset, std::function<void(int)> cb)
     {
         static std::atomic<size_t> idx{0};
         size_t current = idx.fetch_add(1, std::memory_order_relaxed) % workers_.size();
 
-        WriteRequest req{buf, offset, std::move(cb)};
+        WriteRequest req{std::move(buf), offset, std::move(cb)};
 
-        while(!workers_[current]->submit(std::move(req)))
-        {
-            // 优化忙等待,充分利用后续的超线程
-            #if defined(__x86_64__)
-            // 该函数只在x86有效，后续也不打算拓展到其他架构
-            _mm_pause();
-            #endif
-        }
+        workers_[current]->submit(std::move(req));
+    }
+
+    void Put(std::string_view key, std::string_view val, std::function<void(int)> on_complete)
+    {
+        size_t worker_idx = std::hash<std::string_view>{}(key) % workers_.size();
+
+        size_t total_size = LogRecord::size_of(key, val);
+        // 强制字节对齐
+        size_t aligned_size = (total_size + 4095) & ~4095;
+        AlignedBuffer buffer(aligned_size);
+        std::memset(buffer.data(), 0, aligned_size);
+
+        LogRecord::encode(key, val, LogOp::PUT, {buffer.data(), buffer.size()});
+
+        WriteRequest req(std::move(buffer), 0, std::move(on_complete));
+
+        workers_[worker_idx]->submit(std::move(req));
     }
 
 private:

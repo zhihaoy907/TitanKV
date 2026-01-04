@@ -96,10 +96,10 @@ void MutiThread::run()
         if(!local_batch.empty())
         {
             busy = true;
-            for(const auto& req : local_batch)
+            for(auto& req : local_batch)
             {
                 // 确保 SubmitWrite 只做 io_uring_prep_write，不要调用 submit
-                ctx_.SubmitWrite(device_.fd(), req.buf, req.offset, req.callback);
+                ctx_.SubmitWrite(device_.fd(), std::move(req.buf), req.offset, req.callback);
             }
             
             // 批量填装完后，调用一次系统调用

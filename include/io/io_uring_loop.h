@@ -15,6 +15,10 @@ struct IoRequest
     struct iovec iov;
     off_t offset;
     IoCompletionCallback callback;
+    AlignedBuffer held_buffer;
+
+    IoRequest() : held_buffer() 
+    {} 
 };
 
 class IoContext
@@ -25,7 +29,7 @@ public:
     ~IoContext();
 
     void SubmitWrite(int fd, 
-                    const AlignedBuffer &buf, 
+                    AlignedBuffer&& buf, 
                     off_t offset, 
                     IoCompletionCallback cb);
 

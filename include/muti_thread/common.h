@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <utility>
 
 #include "common/common.h"
 
@@ -12,9 +13,15 @@ static unsigned default_thread_num = std::thread::hardware_concurrency();
 
 struct WriteRequest 
 {
-    const AlignedBuffer& buf;
+    AlignedBuffer buf;
     off_t offset;
     std::function<void(int)> callback;
+
+    WriteRequest(AlignedBuffer&& b, off_t o, std::function<void(int)> cb)
+    :buf(std::move(b)), offset(o), callback(std::move(cb))
+    {}
+
+    WriteRequest() = default;
 };
 
 

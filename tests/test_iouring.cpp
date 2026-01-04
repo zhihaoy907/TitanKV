@@ -1,7 +1,7 @@
 /*
 io_uring的性能测试。
 使用io_uring较使用pwrite接口在10w次io测试中
-将时间从12.x秒降至8.x秒
+将时间从21.x秒降至16.x秒
 */
 #include <iostream>
 #include <vector>
@@ -63,11 +63,13 @@ void bench_posix(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
 // ---------------------------------------------------------
 // 2. TitanKV (Async, Ring Batching)
 // ---------------------------------------------------------
-void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf) 
+void bench_titankv(const std::vector<off_t>& offsets) 
 {
     RawDevice device(FILE_PATH);
     // 测试队列
-    IoContext ctx(4096); 
+    IoContext ctx(4096);
+    AlignedBuffer template_buf(IO_SIZE);
+    std::memset(template_buf.data(), 'K', IO_SIZE); 
 
     // int pending_ios = 0;
     int completed_ios = 0;
@@ -77,8 +79,11 @@ void bench_titankv(const std::vector<off_t>& offsets, const AlignedBuffer& buf)
 
     for (int i = 0; i < total; ++i) 
     {
+        AlignedBuffer req_buf(IO_SIZE);
+        std::memcpy(req_buf.data(), template_buf.data(), IO_SIZE);
+        
         ctx.SubmitWrite(device.fd(), 
-                        buf, 
+                        std::move(req_buf), 
                         offsets[i], 
                         [&](int res) 
                         {
@@ -141,7 +146,7 @@ int main()
     // 运行测试
     bench_posix(offsets, buf);
     std::cout << "-----------------------------------------" << std::endl;
-    bench_titankv(offsets, buf);
+    bench_titankv(offsets);
 
     return 0;
 }

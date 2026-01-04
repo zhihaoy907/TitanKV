@@ -18,24 +18,25 @@ TITANKV_NAMESPACE_OPEN
 class CoreWorker
 {
 public:
-    CoreWorker(const RawDevice& device);
+    CoreWorker(unsigned core_id, const std::string& file_path);
 
-    void start(unsigned core_id);
+    void start();
 
     void stop();
 
-    // 提交不再需要锁，但可能会失败。强制调用者对返回值进行判断
-    TITANKV_NODISCARD bool submit(WriteRequest req);
+    void submit(WriteRequest req);
 
 private:
     void run();
 
     std::unique_ptr<rigtorp::SPSCQueue<WriteRequest>> queue_; 
-    RawDevice device_;
-    // 资源隔离：每个 Worker 独享一个 io_uring
-    IoContext ctx_;
+    std::unique_ptr<RawDevice> device_;
     std::atomic<bool> stop_;
     std::thread thread_;
+    unsigned core_id_;
+    unsigned current_offset_;
+    // 资源隔离：每个 Worker 独享一个 io_uring
+    IoContext ctx_;
 };
 
 TITANKV_NAMESPACE_CLOSE
