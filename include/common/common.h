@@ -22,6 +22,8 @@ constexpr unsigned CACHE_LINE_SIZE = 64;
 constexpr unsigned URING_CQ_BATCH = 64;
 // object pool 默认大小
 constexpr unsigned DEFAULT_OBJECT_SIZE = 128;
+// SPSC 队列容量
+constexpr unsigned QUEUE_CAPACITY = 4096;
 
 #ifdef __has_cpp_attribute
 #if __has_cpp_attribute(nodiscard)

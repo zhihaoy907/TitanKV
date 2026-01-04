@@ -1,6 +1,7 @@
 /*
-基于已有环境：IO_URING、CPU亲和性，测试SPSC无锁队列相较普通的带锁队列的程序，
-在多次4核2线程的测试中SPSCQueue把时间从9.x秒缩短至7.x秒，平均提升约18%的性能
+基于已有环境：IO_URING、CPU亲和性，测试SPSC无锁队列相较普通的多线程带锁队列的用例，
+在多次8核6线程的测试中SPSCQueue把时间从1.81秒缩短至1.47秒，平均提升约34%的性能。
+如果仅仅是为了对比SPSC的性能优势，注释掉core_worker.cpp中的更新内存索引能带来更大(约40%)的性能提升。
 */
 
 #include <iostream>
@@ -101,6 +102,11 @@ void bench_titankv_mutithread(const std::vector<off_t>& offsets)
 // ---------------------------------------------------------
 void bench_titankv_spscqueue(const std::vector<off_t>& offsets) 
 {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(0, &cpuset); 
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
     std::atomic<unsigned> completed_ios{0};
     unsigned total = offsets.size();
 

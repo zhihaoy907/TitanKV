@@ -15,7 +15,7 @@ CoreWorker::CoreWorker(unsigned core_id, const std::string& file_path)
 
     current_offset_ = 0;
 
-    write_queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(URING_CQ_BATCH);
+    write_queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(QUEUE_CAPACITY);
 }
  
 void CoreWorker::start()
@@ -63,20 +63,35 @@ void CoreWorker::run()
     {
         ctx_.RunOnce();
 
-        while(auto* req = write_queue_->front())
+        unsigned count = 0;
+        while(count < URING_CQ_BATCH)
         {
+            auto* req = write_queue_->front();
+            if(!req)
+                break;
+
             off_t write_pos = current_offset_;
             uint32_t entry_size = req->buf.size();
             // 更新内存索引
             index_[std::move(req->key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
 
-            ctx_.SubmitWrite(device_->fd(), std::move(req->buf), write_pos, [req](int res)
-                {
-                    if(req->callback)
-                        req->callback(res);
-                });
+            ctx_.SubmitWrite(device_->fd(), std::move(req->buf), write_pos, std::move(req->callback));
+
             current_offset_ += req->buf.size();
             write_queue_->pop();
+            count++;
+        }
+        
+        if (count > 0) 
+        {
+            ctx_.Submit(); 
+        } 
+        else 
+        {
+            // #if defined(__x86_64__)
+            // _mm_pause();
+            // #endif
+            std::this_thread::yield(); 
         }
     }
 }

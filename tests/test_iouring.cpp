@@ -1,7 +1,7 @@
 /*
 io_uring的性能测试。
 使用io_uring较使用pwrite接口在10w次io测试中
-将时间从21.x秒降至16.x秒
+将时间从5.1秒降至2.4秒
 */
 #include <iostream>
 #include <vector>
