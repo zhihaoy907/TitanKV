@@ -1,10 +1,16 @@
-说明：
-基于IO_uring的IO库。主要完成了io_uring、多线程、SPSC、对象池、cpu亲和的功能开发。以下测试均基于八核六线程的vmware+ubuntu 22.04环境的10w次IO
+# TitanKV-IO: 一个基于io_uring的高性能I/O实验库
 
-1、完成了io_uring的功能开发，相较于标准的pwrite函数，将IO的时间从5.1秒降至2.4秒，详情见test目录的test_iouring.cpp
+## 概述
+本项目是一个探索Linux内核最新异步I/O接口`io_uring`极限性能的原型库。通过结合**Thread-Per-Core线程模型**、**无锁SPSC队列**及**缓存行对齐**等技术，构建了一个从用户态到内核态完全异步、无锁竞争的高并发I/O管道。
 
-2、完成了基于io_uring的多线程功能开发，相较于使用单线程，将IO的时间从2.4秒降低至1.81秒，详情见test目录的test_mutithread.cpp
+**核心目标**：量化验证在纯软件层面，通过系统编程与并发架构设计，能多大程度压榨出现代硬件（多核CPU、高速SSD）的I/O性能。
 
-3、完成了基于io_uring的SPSC的功能开发，相较于使用普通多线程，将IO的时间从1.81秒降低至1.47秒，详情见test目录的test_SPSCQueue.cpp。
+## 性能演进与结果
+测试环境：8核VMware + Ubuntu 22.04， 10万次随机写操作。
+通过三个阶段，在vmware+ubuntu 22.04 的八核六线程场景中将总耗时从 **5.1秒降低至1.47秒，整体提升71%**。
+1、基础I/O路径性能优化：实现了`io_uring` 替代 `pwrite`，将IO的时间从**5.1秒降低至2.4秒**，详情见test目录的test_iouring.cpp
+2、并发功能扩展：实现多线程 + CPU亲和性绑定，将IO的时间从**2.4秒降低至1.81秒**，详情见test目录的test_mutithread.cpp
+3、无锁SPSC队列：实现基于io_uring的SPSC的功能开发将IO的时间从**1.81秒降低至1.47秒**，详情见test目录的test_SPSCQueue.cpp。
 
+## 后续目标
 当然，目前写入的都是垃圾数据，后续仍会继续完善IO接口，完成基于IO_uring的异步读取功能开发、优化IO性能。
