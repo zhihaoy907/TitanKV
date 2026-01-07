@@ -1,4 +1,5 @@
 #include "muti_thread/core_worker.h"
+#include "storage/log_entry.h"
 
 #include <optional>
 #include <immintrin.h>
@@ -47,6 +48,17 @@ void CoreWorker::stop()
         thread_.join();
 }
 
+std::string CoreWorker::ExtractValue(const AlignedBuffer& buf, uint32_t len)
+{
+    const char* ptr = (const char*)buf.data();
+    auto* header = reinterpret_cast<const LogHeader*>(ptr);
+    ptr += sizeof(LogHeader);
+
+    ptr += header->key_len;
+
+    return std::string(ptr, header->val_len);
+}
+
 void  CoreWorker::submit(WriteRequest req)
 {
     while (!write_queue_->try_push(std::move(req))) 
@@ -64,7 +76,11 @@ void CoreWorker::run()
         ctx_.RunOnce();
 
         unsigned count = 0;
-        while(count < URING_CQ_BATCH)
+
+        // -------------------------------------------------------
+        // 批量处理写请求
+        // -------------------------------------------------------
+        while(count < URING_CQ_BATCH / 2)
         {
             auto* req = write_queue_->front();
             if(!req)
@@ -81,7 +97,52 @@ void CoreWorker::run()
             write_queue_->pop();
             count++;
         }
-        
+
+        // -------------------------------------------------------
+        // 批量处理读请求
+        // -------------------------------------------------------
+        while(count < URING_CQ_BATCH)
+        {
+            auto* req = read_queue_->front();
+            if(!req)
+                break;
+            
+            auto it = index_.find(req->key);
+
+            if(it != index_.end()) [[likely]]
+            {
+                KeyLocation loc = it->second;
+                size_t aligned_len = (loc.len + 4095) &~ 4095;
+                AlignedBuffer buf(aligned_len);
+                auto user_cb = std::move(req->callback);
+
+                ctx_.SubmitRead(device_->fd(),
+                                std::move(buf),
+                                loc.offset,
+                                loc.len,
+                                [this, user_cb, loc](int res, AlignedBuffer& data_buf) 
+                                {
+                                    if (res < 0) 
+                                    {
+                                        user_cb("");
+                                    } else 
+                                    {
+                                        // 反序列化
+                                        std::string value = ExtractValue(data_buf, loc.len);
+                                        user_cb(std::move(value));
+                                    }
+                                });
+                read_queue_->pop();
+                count++;
+            }
+            else [[unlikely]]
+            {
+                if(req->callback) 
+                    req->callback(""); 
+            }
+        }
+
+
         if (count > 0) 
         {
             ctx_.Submit(); 

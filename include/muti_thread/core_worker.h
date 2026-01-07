@@ -38,6 +38,7 @@ public:
 
 private:
     void run();
+    std::string ExtractValue(const AlignedBuffer& buf, uint32_t len);
 
     std::unique_ptr<rigtorp::SPSCQueue<ReadRequest>> read_queue_; 
     std::unique_ptr<rigtorp::SPSCQueue<WriteRequest>> write_queue_; 

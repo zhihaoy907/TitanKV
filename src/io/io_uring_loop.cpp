@@ -4,6 +4,7 @@
 
 using namespace titankv;
 
+
 IoContext::IoContext(unsigned entries)
 {
     struct io_uring_params params;
@@ -26,7 +27,7 @@ IoContext::~IoContext()
     io_uring_queue_exit(&ring_);
 }
 
-void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len, IoCompletionCallback cb)
+void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len, ReadCompletionCallback cb)
 {
     // 尝试获取 SQE
     struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
@@ -48,7 +49,7 @@ void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len
     assert(req->iov.iov_base != nullptr);
 
     req->offset = offset;
-    req->callback = std::move(cb);
+    req->read_cb = std::move(cb);
 
     io_uring_prep_readv(sqe, fd, &req->iov, 1, offset);
     io_uring_sqe_set_data(sqe, req);
@@ -57,7 +58,7 @@ void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len
 }
 
 
-void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, IoCompletionCallback cb) 
+void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, WriteCompletionCallback cb) 
 {
     // 尝试获取 SQE
     struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
@@ -75,7 +76,7 @@ void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, IoComplet
     auto* req = request_pool_.alloc();
     req->iov = {};
     req->offset = offset;
-    req->callback = std::move(cb);
+    req->write_cb = std::move(cb);
     req->iov.iov_base = buf.data();
     req->iov.iov_len = buf.size();
     req->held_buffer = std::move(buf);
@@ -101,8 +102,8 @@ void IoContext::RunOnce()
 
         auto* req = static_cast<IoRequest*>(io_uring_cqe_get_data(rqe));
 
-        if(req && req->callback)
-            req->callback(rqe->res);
+        if(req && req->write_cb)
+            req->write_cb(rqe->res);
 
         request_pool_.free(req);
     }

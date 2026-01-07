@@ -8,13 +8,15 @@
 
 TITANKV_NAMESPACE_OPEN
 
-using IoCompletionCallback = std::function<void(int bytes_transferred)>;
+using WriteCompletionCallback = std::function<void(int bytes_transferred)>;
+using ReadCompletionCallback = std::function<void(int, AlignedBuffer&)>;
 
 struct IoRequest
 {
     struct iovec iov;
     off_t offset;
-    IoCompletionCallback callback;
+    WriteCompletionCallback write_cb;
+    ReadCompletionCallback read_cb;
     AlignedBuffer held_buffer;
 
     IoRequest() : held_buffer() 
@@ -31,13 +33,13 @@ public:
     void SubmitWrite(int fd, 
                     AlignedBuffer&& buf, 
                     off_t offset, 
-                    IoCompletionCallback cb);
+                    WriteCompletionCallback cb);
 
     void SubmitRead(int fd, 
                     AlignedBuffer&& buf, 
                     off_t offset, 
                     size_t len, 
-                    IoCompletionCallback cb);
+                    ReadCompletionCallback cb);
 
     void RunOnce();
 
