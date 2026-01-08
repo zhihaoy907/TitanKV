@@ -44,7 +44,6 @@ public:
     void Put(std::string_view key, std::string_view val, std::function<void(int)> on_complete)
     {
         size_t worker_idx = std::hash<std::string_view>{}(key) % workers_.size();
-
         size_t total_size = LogRecord::size_of(key, val);
         // 强制字节对齐
         size_t aligned_size = (total_size + 4095) & ~4095;
@@ -54,6 +53,15 @@ public:
         LogRecord::encode(key, val, LogOp::PUT, {buffer.data(), buffer.size()});
 
         WriteRequest req(std::move(buffer), 0, std::move(on_complete));
+
+        workers_[worker_idx]->submit(std::move(req));
+    }
+
+    void Get(std::string_view key, std::function<void(std::string)> on_complete)
+    {
+        size_t worker_idx = std::hash<std::string_view>{}(key) % workers_.size();
+
+        ReadRequest req(key, std::move(on_complete));
 
         workers_[worker_idx]->submit(std::move(req));
     }

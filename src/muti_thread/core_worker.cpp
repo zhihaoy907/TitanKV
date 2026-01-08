@@ -17,6 +17,7 @@ CoreWorker::CoreWorker(unsigned core_id, const std::string& file_path)
     current_offset_ = 0;
 
     write_queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(QUEUE_CAPACITY);
+    read_queue_ = std::make_unique<rigtorp::SPSCQueue<ReadRequest>>(QUEUE_CAPACITY);
 }
  
 void CoreWorker::start()
@@ -61,7 +62,18 @@ std::string CoreWorker::ExtractValue(const AlignedBuffer& buf, uint32_t len)
 
 void  CoreWorker::submit(WriteRequest req)
 {
-    while (!write_queue_->try_push(std::move(req))) 
+    enqueue_blocking(write_queue_, std::move(req));
+}
+
+void  CoreWorker::submit(ReadRequest req)
+{
+    enqueue_blocking(read_queue_, std::move(req));
+}
+
+template <typename Q, typename T>
+void  CoreWorker::enqueue_blocking(Q& queue, T&& item)
+{
+    while (!queue->try_push(std::move(item))) 
     {
         #if defined(__x86_64__)
         _mm_pause();
@@ -132,14 +144,14 @@ void CoreWorker::run()
                                         user_cb(std::move(value));
                                     }
                                 });
-                read_queue_->pop();
                 count++;
             }
             else [[unlikely]]
             {
-                if(req->callback) 
+                if(req->callback)
                     req->callback(""); 
             }
+            read_queue_->pop();
         }
 
 

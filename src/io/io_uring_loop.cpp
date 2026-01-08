@@ -16,7 +16,7 @@ IoContext::IoContext(unsigned entries)
     // params.flags |= IORING_SETUP_SQPOLL;
 
     int ret = io_uring_queue_init_params(entries, &ring_, &params);
-    if(ret < 0)
+    if(ret < 0) [[unlikely]]
         throw std::runtime_error("io_uring init failed");
 
     request_pool_.reserve(entries); 

@@ -13,24 +13,35 @@ set(TEST_SOURCES
     test_SPSCQueue.cpp
     test_log_format.cpp
     test_engine.cpp
+    test_bench_io.cpp
 )
 
 # 1. io_uring 最基本的性能测试
 add_executable(test_iouring test_iouring.cpp)
 target_link_libraries(test_iouring PRIVATE titankv_core)
+target_compile_options(test_iouring PRIVATE -g -O0 -fno-omit-frame-pointer)
 
 # 2. 基于 io_uring + CPU binding 的多线程性能测试
 add_executable(test_mutithread test_mutithread.cpp)
 target_link_libraries(test_mutithread PRIVATE titankv_core)
+target_compile_options(test_mutithread PRIVATE -g -O0 -fno-omit-frame-pointer)
 
 # 3. 基于 SPSCQueue 的性能测试
 add_executable(test_SPSCQueue test_SPSCQueue.cpp)
 target_link_libraries(test_SPSCQueue PRIVATE titankv_core)
+target_compile_options(test_SPSCQueue PRIVATE -g -O0 -fno-omit-frame-pointer)
 
 # 4. log 类的功能性测试
 add_executable(test_log_format test_log_format.cpp)
 target_link_libraries(test_log_format PRIVATE titankv_core)
+target_compile_options(test_log_format PRIVATE -g -O0 -fno-omit-frame-pointer)
 
 # 5. engine 类的功能性测试
 add_executable(test_engine test_engine.cpp)
 target_link_libraries(test_engine PRIVATE titankv_core)
+target_compile_options(test_engine PRIVATE -g -O0 -fno-omit-frame-pointer)
+
+# 5. IO 类的功能性测试
+add_executable(test_bench_io test_bench_io.cpp)
+target_link_libraries(test_bench_io PRIVATE titankv_core)
+target_compile_options(test_bench_io PRIVATE -g -O0 -fno-omit-frame-pointer)

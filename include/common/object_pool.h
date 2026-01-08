@@ -48,7 +48,7 @@ public:
     T* alloc(Args&&... args) 
     {
         // 如果链表是空，先扩容
-        if (free_head_ == nullptr) 
+        if (free_head_ == nullptr) [[unlikely]]
         {
             expand();
         }
@@ -89,7 +89,8 @@ public:
 
     void free(T* ptr) 
     {
-        if (!ptr) return;
+        if (!ptr) [[unlikely]]
+            return; 
 
         ptr->~T();
 
@@ -109,7 +110,7 @@ private:
         
         void* raw_mem = nullptr;
         // 使用 64 字节对齐，不仅为了 cache line，也是为了后续 O_DIRECT 的对齐要求
-        if (posix_memalign(&raw_mem, 64, block_bytes) != 0) 
+        if (posix_memalign(&raw_mem, 64, block_bytes) != 0) [[unlikely]]
         {
             throw std::bad_alloc();
         }

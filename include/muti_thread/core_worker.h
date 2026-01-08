@@ -36,6 +36,11 @@ public:
 
     void submit(WriteRequest req);
 
+    void submit(ReadRequest req);
+
+    template <typename Q, typename T>
+    void enqueue_blocking(Q& queue, T&& item);
+
 private:
     void run();
     std::string ExtractValue(const AlignedBuffer& buf, uint32_t len);
@@ -49,7 +54,7 @@ private:
     unsigned current_offset_;
     // 资源隔离：每个 Worker 独享一个 io_uring
     IoContext ctx_;
-    std::unordered_map<std::string, KeyLocation> index_;
+    std::unordered_map<std::string_view, KeyLocation> index_;
 };
 
 TITANKV_NAMESPACE_CLOSE

@@ -32,8 +32,12 @@ struct WriteRequest
 
 struct ReadRequest 
 {
-    std::string key;
+    std::string_view key;
     std::function<void(std::string)> callback; 
+
+    ReadRequest(std::string_view &k, std::function<void(std::string)> cb)
+    : key(k), callback(cb)
+    {}
 };
 
 
