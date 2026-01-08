@@ -92,7 +92,7 @@ void CoreWorker::run()
         // -------------------------------------------------------
         // 批量处理写请求
         // -------------------------------------------------------
-        while(count < URING_CQ_BATCH / 2)
+        while(count < URING_CQ_BATCH)
         {
             auto* req = write_queue_->front();
             if(!req)
@@ -118,9 +118,9 @@ void CoreWorker::run()
             auto* req = read_queue_->front();
             if(!req)
                 break;
-            
+                        
             auto it = index_.find(req->key);
-
+            
             if(it != index_.end()) [[likely]]
             {
                 KeyLocation loc = it->second;
@@ -131,13 +131,14 @@ void CoreWorker::run()
                 ctx_.SubmitRead(device_->fd(),
                                 std::move(buf),
                                 loc.offset,
-                                loc.len,
+                                aligned_len,
                                 [this, user_cb, loc](int res, AlignedBuffer& data_buf) 
                                 {
                                     if (res < 0) 
                                     {
                                         user_cb("");
-                                    } else 
+                                    } 
+                                    else 
                                     {
                                         // 反序列化
                                         std::string value = ExtractValue(data_buf, loc.len);

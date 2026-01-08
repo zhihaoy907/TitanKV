@@ -102,8 +102,17 @@ void IoContext::RunOnce()
 
         auto* req = static_cast<IoRequest*>(io_uring_cqe_get_data(rqe));
 
-        if(req && req->write_cb)
-            req->write_cb(rqe->res);
+        if(req) 
+        {
+            if (req->read_cb) 
+            {
+                req->read_cb(rqe->res, req->held_buffer);
+            } 
+            else if (req->write_cb) 
+            {
+                req->write_cb(rqe->res);
+            }
+        }
 
         request_pool_.free(req);
     }

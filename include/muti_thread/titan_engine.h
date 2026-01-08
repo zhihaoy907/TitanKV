@@ -41,7 +41,17 @@ public:
         workers_[current]->submit(std::move(req));
     }
 
-    void Put(std::string_view key, std::string_view val, std::function<void(int)> on_complete)
+    void write(AlignedBuffer&& buf, std::string k, off_t offset, std::function<void(int)> cb)
+    {
+        static std::atomic<size_t> idx{0};
+        size_t current = idx.fetch_add(1, std::memory_order_relaxed) % workers_.size();
+
+        WriteRequest req{std::move(buf), k, offset, std::move(cb)};
+
+        workers_[current]->submit(std::move(req));
+    }
+
+    void Put(std::string key, std::string_view val, std::function<void(int)> on_complete)
     {
         size_t worker_idx = std::hash<std::string_view>{}(key) % workers_.size();
         size_t total_size = LogRecord::size_of(key, val);
@@ -52,7 +62,7 @@ public:
 
         LogRecord::encode(key, val, LogOp::PUT, {buffer.data(), buffer.size()});
 
-        WriteRequest req(std::move(buffer), 0, std::move(on_complete));
+        WriteRequest req(std::move(buffer), key, 0, std::move(on_complete));
 
         workers_[worker_idx]->submit(std::move(req));
     }

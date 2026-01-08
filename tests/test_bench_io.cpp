@@ -36,7 +36,8 @@ void test_rw_integrity()
         });
         return f.get();
     };
-
+    
+    // sleep(5);
     std::cout << "[Test] 1. Basic Put/Get..." << std::endl;
     sync_put("key1", "value1");
     std::string v1 = sync_get("key1");
