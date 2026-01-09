@@ -14,6 +14,7 @@ set(TEST_SOURCES
     test_log_format.cpp
     test_engine.cpp
     test_bench_io.cpp
+    test_concurrency.cpp
 )
 
 # 1. io_uring 最基本的性能测试
@@ -45,3 +46,8 @@ target_compile_options(test_engine PRIVATE -g -O0 -fno-omit-frame-pointer)
 add_executable(test_bench_io test_bench_io.cpp)
 target_link_libraries(test_bench_io PRIVATE titankv_core)
 target_compile_options(test_bench_io PRIVATE -g -O0 -fno-omit-frame-pointer)
+
+# 6. IO 类的功能性压力测试
+add_executable(test_concurrency test_concurrency.cpp)
+target_link_libraries(test_concurrency PRIVATE titankv_core)
+target_compile_options(test_concurrency PRIVATE -g -O0 -fno-omit-frame-pointer)

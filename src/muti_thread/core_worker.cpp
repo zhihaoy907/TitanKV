@@ -73,6 +73,13 @@ void  CoreWorker::submit(ReadRequest req)
 template <typename Q, typename T>
 void  CoreWorker::enqueue_blocking(Q& queue, T&& item)
 {
+    // T copy = item;
+    // while (!queue->try_push(std::move(copy))) 
+    // {
+    //     #if defined(__x86_64__)
+    //     _mm_pause();
+    //     #endif
+    // }
     while (!queue->try_push(std::move(item))) 
     {
         #if defined(__x86_64__)
@@ -99,15 +106,43 @@ void CoreWorker::run()
                 break;
 
             off_t write_pos = current_offset_;
+            current_offset_ += req->buf.size();
             uint32_t entry_size = req->buf.size();
             // 更新内存索引
-            index_[std::move(req->key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
+            // index_[std::move(req->key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
+            index_[req->key] = KeyLocation{ (uint64_t)write_pos, entry_size };
 
             ctx_.SubmitWrite(device_->fd(), std::move(req->buf), write_pos, std::move(req->callback));
 
-            current_offset_ += req->buf.size();
             write_queue_->pop();
             count++;
+        }
+
+        // debug
+        if (!read_queue_->empty()) 
+        {
+             static bool debug_printed = false;
+             if (!debug_printed) 
+             {
+                 std::cerr << "=== DEBUG INDEX DUMP (First 10) ===" << std::endl;
+                 int i = 0;
+                 for (const auto& kv : index_) 
+                 {
+                     if (i++ >= 10 ) break;
+                     std::cout << "index_ size: " << index_.size() << std::endl;
+                     std::cerr << "Key: [" << kv.first << "] -> Offset: " << kv.second.offset 
+                               << " Len: " << kv.second.len << std::endl;
+                 }
+                 std::cerr << "Total Keys: " << index_.size() << std::endl;
+                 
+                 auto it = index_.find("key_00");
+                 if (it != index_.end()) {
+                     std::cerr << "Target [key_00] FOUND! Offset=" << it->second.offset << std::endl;
+                 } else {
+                     std::cerr << "Target [key_00] MISSING!" << std::endl;
+                 }
+                 debug_printed = true; // 只打印一次
+             }
         }
 
         // -------------------------------------------------------

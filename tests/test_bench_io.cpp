@@ -1,3 +1,11 @@
+/*
+TITANKV 输入输出的基准测试，本次测试不测试性能，只验证功能性。
+本次测试包含三个部分：
+1、测试最基本的输入输出路径，判断从磁盘读取的数据跟刚刚提交给 TitanKV 的数据是否一致
+2、针对不存在的key值， TitanKV 是否可以返回 “”
+3、是否可以实时更新 key 对应的 value 值
+在 test_concurrency.cpp 中完成了并发场景下针对该功能的压力测试
+*/
 #include <future>
 #include <iostream>
 #include <cassert>

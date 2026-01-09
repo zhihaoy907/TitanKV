@@ -3,6 +3,8 @@
 #include <memory>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+
 
 #include "common/common.h"
 
@@ -29,13 +31,41 @@ public:
             free(data_);
     }
 
-    AlignedBuffer(const AlignedBuffer&) = delete;
-    AlignedBuffer& operator=(const AlignedBuffer&) = delete;
+    // AlignedBuffer(const AlignedBuffer&) = delete;
+    // AlignedBuffer& operator=(const AlignedBuffer&) = delete;
 
     AlignedBuffer(AlignedBuffer&& other) noexcept: data_(other.data_), size_(other.size_)
     {
         other.data_ = nullptr;
         other.size_ = 0;
+    }
+
+    AlignedBuffer(const AlignedBuffer& other)
+    : size_(other.size_)
+    {
+        void* ptr = nullptr;
+        if (posix_memalign(&ptr, kAlignment, size_) != 0)
+            throw std::runtime_error("Aligned alloc failed");
+
+        data_ = static_cast<uint8_t*>(ptr);
+        std::memcpy(data_, other.data_, size_);
+    }
+
+    AlignedBuffer& operator=(const AlignedBuffer& other)
+    {
+        if (this == &other)
+            return *this;
+
+        void* new_data = nullptr;
+        if (posix_memalign(&new_data, kAlignment, other.size_) != 0)
+            throw std::runtime_error("Aligned alloc failed");
+
+        std::memcpy(new_data, other.data_, other.size_);
+
+        free(data_);
+        data_ = static_cast<uint8_t*>(new_data);
+        size_ = other.size_;
+        return *this;
     }
 
     uint8_t *data() const

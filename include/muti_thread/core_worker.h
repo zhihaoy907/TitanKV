@@ -6,6 +6,7 @@
 #include <memory>
 #include <iostream>
 #include <unistd.h>
+#include <map>
 
 #include "io/io_uring_loop.h"
 #include "io/raw_device.h"
@@ -54,7 +55,8 @@ private:
     unsigned current_offset_;
     // 资源隔离：每个 Worker 独享一个 io_uring
     IoContext ctx_;
-    std::unordered_map<std::string_view, KeyLocation> index_;
+    // std::unordered_map<std::string_view, KeyLocation> index_;
+    std::map<std::string_view, KeyLocation> index_;
 
 };
 
