@@ -51,9 +51,9 @@ public:
         workers_[current]->submit(std::move(req));
     }
 
-    void Put(std::string key, std::string_view val, std::function<void(int)> on_complete)
+    void Put(std::string key, std::string val, std::function<void(int)> on_complete)
     {
-        size_t worker_idx = std::hash<std::string_view>{}(key) % workers_.size();
+        size_t worker_idx = std::hash<std::string>{}(key) % workers_.size();
         size_t total_size = LogRecord::size_of(key, val);
         // 强制字节对齐
         size_t aligned_size = (total_size + 4095) & ~4095;
@@ -67,9 +67,9 @@ public:
         workers_[worker_idx]->submit(std::move(req));
     }
 
-    void Get(std::string_view key, std::function<void(std::string)> on_complete)
+    void Get(std::string key, std::function<void(std::string)> on_complete)
     {
-        size_t worker_idx = std::hash<std::string_view>{}(key) % workers_.size();
+        size_t worker_idx = std::hash<std::string>{}(key) % workers_.size();
 
         ReadRequest req(key, std::move(on_complete));
 

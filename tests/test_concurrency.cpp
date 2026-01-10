@@ -23,7 +23,7 @@ void test_concurrent_rw()
         std::filesystem::remove_all(path);
     std::filesystem::create_directory(path);
 
-    TitanEngine db(path, 1);
+    TitanEngine db(path, thread_num);
 
     auto sync_put = [&](std::string k, std::string v){
         // promise 有点影响性能，后续优化
@@ -45,6 +45,8 @@ void test_concurrent_rw()
         return f.get();
     };
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::vector<std::thread> writers;
     for(unsigned t = 0; t < 1; t++)
     {
@@ -63,8 +65,6 @@ void test_concurrent_rw()
         if(th.joinable())
             th.join();
     }
-
-    std::this_thread::sleep_for(std::chrono::seconds(5)); 
 
     std::vector<std::thread> readers;
     for(unsigned t = 0; t < 1; t++)
@@ -92,7 +92,11 @@ void test_concurrent_rw()
             th.join();
     }
 
-    std::cout << "[Test] 1. Basic Put/Get Pass" << std::endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    double elapsed_sec = std::chrono::duration<double>(end - start).count();
+
+    std::cout << "[Test] 1. Basic Put/Get Pass" << 
+        " | Time: " << elapsed_sec << "s" << std::endl;
 }
 
 int main()

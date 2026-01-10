@@ -49,7 +49,7 @@ void CoreWorker::stop()
         thread_.join();
 }
 
-std::string CoreWorker::ExtractValue(const AlignedBuffer& buf, uint32_t len)
+std::string CoreWorker::ExtractValue(const AlignedBuffer& buf, [[maybe_unused]] uint32_t len)
 {
     const char* ptr = (const char*)buf.data();
     auto* header = reinterpret_cast<const LogHeader*>(ptr);
@@ -116,33 +116,6 @@ void CoreWorker::run()
 
             write_queue_->pop();
             count++;
-        }
-
-        // debug
-        if (!read_queue_->empty()) 
-        {
-             static bool debug_printed = false;
-             if (!debug_printed) 
-             {
-                 std::cerr << "=== DEBUG INDEX DUMP (First 10) ===" << std::endl;
-                 int i = 0;
-                 for (const auto& kv : index_) 
-                 {
-                     if (i++ >= 10 ) break;
-                     std::cout << "index_ size: " << index_.size() << std::endl;
-                     std::cerr << "Key: [" << kv.first << "] -> Offset: " << kv.second.offset 
-                               << " Len: " << kv.second.len << std::endl;
-                 }
-                 std::cerr << "Total Keys: " << index_.size() << std::endl;
-                 
-                 auto it = index_.find("key_00");
-                 if (it != index_.end()) {
-                     std::cerr << "Target [key_00] FOUND! Offset=" << it->second.offset << std::endl;
-                 } else {
-                     std::cerr << "Target [key_00] MISSING!" << std::endl;
-                 }
-                 debug_printed = true; // 只打印一次
-             }
         }
 
         // -------------------------------------------------------

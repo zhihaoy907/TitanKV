@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <string_view>
+#include <string>
 #include <span>
 
 #include "common/common.h"
@@ -36,13 +36,13 @@ struct LogHeader
 class LogRecord
 {
 public:
-    static size_t size_of(std::string_view key, std::string_view val)
+    static size_t size_of(std::string key, std::string val)
     {
         return sizeof(LogHeader) + key.size() + val.size();
     }
 
-    static void encode(std::string_view key, 
-                        std::string_view val,
+    static void encode(std::string key, 
+                        std::string val,
                         LogOp type,
                         std::span<uint8_t> dest_buf);
 

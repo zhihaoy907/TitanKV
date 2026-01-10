@@ -5,8 +5,8 @@
 
 TITANKV_NAMESPACE_OPEN
 
-void LogRecord::encode(std::string_view key,
-                        std::string_view val,
+void LogRecord::encode(std::string key,
+                        std::string val,
                         LogOp type,
                         std::span<uint8_t> dest_buf)
 {
@@ -29,7 +29,7 @@ void LogRecord::encode(std::string_view key,
 } 
 
 
-uint32_t LogRecord::calculate_crc(const uint8_t* data, size_t len) 
+uint32_t LogRecord::calculate_crc([[maybe_unused]]const uint8_t* data, [[maybe_unused]]size_t len) 
 {
     // 临时
     return 0; 

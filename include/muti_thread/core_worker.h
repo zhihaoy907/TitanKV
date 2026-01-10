@@ -55,8 +55,8 @@ private:
     unsigned current_offset_;
     // 资源隔离：每个 Worker 独享一个 io_uring
     IoContext ctx_;
-    // std::unordered_map<std::string_view, KeyLocation> index_;
-    std::map<std::string_view, KeyLocation> index_;
+    // 一定不要使用string_view!!!!!!!!!
+    std::unordered_map<std::string, KeyLocation> index_;
 
 };
 
