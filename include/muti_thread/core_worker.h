@@ -39,6 +39,8 @@ public:
 
     void submit(ReadRequest req);
 
+    void recover();
+
     template <typename Q, typename T>
     void enqueue_blocking(Q& queue, T&& item);
     
@@ -53,6 +55,8 @@ private:
     std::thread thread_;
     unsigned core_id_;
     unsigned current_offset_;
+    int fd_;
+    std::string filename_;
     // 资源隔离：每个 Worker 独享一个 io_uring
     IoContext ctx_;
     // 一定不要使用string_view!!!!!!!!!

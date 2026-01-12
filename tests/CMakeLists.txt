@@ -51,3 +51,8 @@ target_compile_options(test_bench_io PRIVATE -g -O0 -fno-omit-frame-pointer)
 add_executable(test_concurrency test_concurrency.cpp)
 target_link_libraries(test_concurrency PRIVATE titankv_core)
 target_compile_options(test_concurrency PRIVATE -g -O0 -fno-omit-frame-pointer)
+
+# 6. 异常恢复的功能性测试
+add_executable(test_recover test_recover.cpp)
+target_link_libraries(test_recover PRIVATE titankv_core)
+target_compile_options(test_recover PRIVATE -g -O0 -fno-omit-frame-pointer)

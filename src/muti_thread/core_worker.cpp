@@ -1,9 +1,11 @@
 #include "muti_thread/core_worker.h"
 #include "storage/log_entry.h"
+#include "storage/log_reader.h"
 
 #include <optional>
 #include <immintrin.h>
 #include <filesystem>
+#include <sys/stat.h>
 
 
 using namespace titankv;
@@ -11,8 +13,9 @@ using namespace titankv;
 CoreWorker::CoreWorker(unsigned core_id, const std::string& file_path)
 : stop_(false), core_id_(core_id), ctx_(4096)
 {    
-    std::string filename = file_path + "/data_" + std::to_string(core_id) + ".log";
-    device_ = std::make_unique<RawDevice>(filename);
+    filename_ = file_path + "/data_" + std::to_string(core_id) + ".log";
+    device_ = std::make_unique<RawDevice>(filename_);
+    fd_ = device_->fd();
 
     current_offset_ = 0;
 
@@ -36,10 +39,43 @@ void CoreWorker::start()
         int rc = pthread_setaffinity_np(handle, sizeof(cpu_set_t), &cpuset);
         if(rc != 0)
             std::cerr << "Error calling pthread_setaffinity_np: " << rc << std::endl;
+        
+        this->recover();
 
         this->run();
 
     });
+}
+
+void CoreWorker::recover()
+{
+    LogReader reader(filename_);
+    LogHeader header;
+    std::string key;
+    uint64_t offset;
+    struct stat st;
+
+    while(reader.Next(header, key, offset))
+    {
+        size_t real_len = sizeof(LogHeader) + header.key_len + header.val_len;
+        size_t aligned_len = (real_len + 4095) & ~4095;
+
+        index_[key] = KeyLocation{offset, (uint32_t)real_len};
+        current_offset_ = offset + aligned_len;
+    }
+
+    if(fstat(fd_, &st) != 0)
+    {
+        std::cerr << "fstat failed: " << std::strerror(errno) << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    if(reader.GetValidEndOffset() < static_cast<uint64_t>(st.st_size))
+    {
+        ftruncate(device_->fd(), reader.GetValidEndOffset());
+        current_offset_ = reader.GetValidEndOffset();
+    }
+
 }
 
 void CoreWorker::stop()

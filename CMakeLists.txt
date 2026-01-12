@@ -49,6 +49,7 @@ set(KV_SOURCES
     src/muti_thread/muti_thread.cpp
     src/muti_thread/core_worker.cpp
     src/storage/log_record.cpp
+    src/storage/log_reader.cpp
 )
 
 # ==========================================

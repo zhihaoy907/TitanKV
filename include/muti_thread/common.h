@@ -1,7 +1,10 @@
 #pragma once
 #include <functional>
 #include <utility>
+#include <string>
+#include <thread>
 
+#include "common/buffer.h"
 #include "common/common.h"
 
 TITANKV_NAMESPACE_OPEN
