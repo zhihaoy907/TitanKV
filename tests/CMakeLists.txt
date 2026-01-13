@@ -56,3 +56,8 @@ target_compile_options(test_concurrency PRIVATE -g -O0 -fno-omit-frame-pointer)
 add_executable(test_recover test_recover.cpp)
 target_link_libraries(test_recover PRIVATE titankv_core)
 target_compile_options(test_recover PRIVATE -g -O0 -fno-omit-frame-pointer)
+
+# 6. 跟RocksDB的性能基准测试
+add_executable(test_bench_rocks test_bench_rocks.cpp)
+target_link_libraries(test_bench_rocks PRIVATE titankv_core rocksdb pthread dl z)
+target_compile_options(test_bench_rocks PRIVATE -g -O0 -fno-omit-frame-pointer)

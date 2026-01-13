@@ -5,6 +5,7 @@
 #include <immintrin.h>
 #include <functional>
 #include <cstring>
+#include <mutex>
 
 #include "core_worker.h"
 #include "storage/log_entry.h"
@@ -18,10 +19,15 @@ public:
     TitanEngine(const std::string& file_path, unsigned thread_num)
     {
         workers_.reserve(thread_num);
-        for(unsigned i = 0; i < thread_num; ++i)
+        worker_mutexes_.reserve(thread_num);
+
+        for(unsigned i = 0; i < thread_num; ++i) 
+        {
             workers_.emplace_back(std::make_unique<CoreWorker>(i, file_path));
+            worker_mutexes_.emplace_back(std::make_unique<std::mutex>());
+        }
         
-        for(auto& w:workers_)
+        for(auto& w:workers_) 
             w->start();
     }
 
@@ -64,7 +70,10 @@ public:
 
         WriteRequest req(std::move(buffer), key, 0, std::move(on_complete));
 
-        workers_[worker_idx]->submit(std::move(req));
+        {
+            std::lock_guard<std::mutex> lock(*worker_mutexes_[worker_idx]);
+            workers_[worker_idx]->submit(std::move(req));
+        }
     }
 
     void Get(std::string key, std::function<void(std::string)> on_complete)
@@ -93,6 +102,7 @@ public:
 
 private:
     std::vector<std::unique_ptr<CoreWorker>> workers_;
+    std::vector<std::unique_ptr<std::mutex>> worker_mutexes_; 
 };
 
 
