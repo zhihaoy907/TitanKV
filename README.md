@@ -5,7 +5,7 @@
 
 **核心目标**：量化验证在纯软件层面，通过系统编程与并发架构设计，能多大程度压榨出现代硬件（多核CPU、高速SSD）的I/O性能。
 
-**现阶段性能对比**：在与100% 随机写入、4KB Payload、强一致性落盘场景下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB 的 2.34 倍**，详情见test_bench_rocks.cpp。
+**现阶段性能基准测试结果**：在与100% 随机写入、4KB Payload、强一致性落盘场景下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB 的 2.34 倍**，详情见test_bench_rocks.cpp。
 
 ## 性能演进与结果
 测试环境：8核VMware + Ubuntu 22.04， 10万次随机写操作。
