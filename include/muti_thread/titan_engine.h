@@ -76,6 +76,21 @@ public:
         workers_[worker_idx]->submit(std::move(req));
     }
 
+    void Delete(std::string key, std::function<void(int)> on_complete)
+    {
+        size_t worker_idx = std::hash<std::string>{}(key) % workers_.size();
+        size_t total_size = LogRecord::size_of(key, "");
+        // 强制字节对齐
+        size_t aligned_size = (total_size + 4095) & ~4095;
+        AlignedBuffer buffer(aligned_size);
+        std::memset(buffer.data(), 0, aligned_size);
+
+        LogRecord::encode(key, "", LogOp::DELETE, {buffer.data(), buffer.size()});
+
+        WriteRequest req(std::move(buffer), std::string(key), 0, LogOp::DELETE ,std::move(on_complete));
+        workers_[worker_idx]->submit(std::move(req));
+    }
+
 private:
     std::vector<std::unique_ptr<CoreWorker>> workers_;
 };

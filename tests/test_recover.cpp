@@ -117,7 +117,51 @@ void test_crash_recovery()
         {
             std::cout << "  -> [Info] Last val is: " << last_val << " ,record survived (Maybe padding saved it)." << std::endl;
         }
+
+        std::cout << "[Phase 4] Testing Delete..." << std::endl;
+
+        for(unsigned i = 0; i < 100; ++i)
+        {
+            std::string key = "key_" + std::to_string(i);
+
+            std::promise<void> p;
+            auto f = p.get_future();
+            db.Delete(key, [&](int res){
+                assert(res > 0);
+                p.set_value();
+            });
+            f.get();
+        }
+        std::cout << " -> Deleted 100 keys. " << std::endl;
+
+        for(int i = 0; i < 100; ++i)
+        {
+            std::string val = sync_get_safe(db, i);
+            assert(val == "");
+        }
+        std::cout << "  -> Memory check passed." << std::endl;
     }
+
+    std::cout << "[Phase 5] Restarting to Verify Delete Persistence..." << std::endl;
+    {
+        TitanEngine db(TEST_DIR, 2);
+        
+        for (int i = 0; i < 100; ++i) 
+        {
+            std::string val = sync_get_safe(db, i);
+            if (val != "") 
+            {
+                std::cerr << "Zombie Key Found! " << "key_" << i << std::endl;
+                std::terminate();
+            }
+        }
+        
+        for(int i = 100; i < NUM_KEYS - 1; ++i) 
+            sync_check(db, i);
+        
+        std::cout << "  -> Persistence check passed." << std::endl;
+    }
+
 }
 
 int main() 

@@ -59,8 +59,14 @@ void CoreWorker::recover()
     {
         size_t real_len = sizeof(LogHeader) + header.key_len + header.val_len;
         size_t aligned_len = (real_len + 4095) & ~4095;
-
-        index_[key] = KeyLocation{offset, (uint32_t)real_len};
+        if (header.type == LogOp::PUT)
+        {
+            index_[key] = KeyLocation{offset, (uint32_t)real_len};
+        }
+        else if(header.type == LogOp::DELETE)
+        {
+            index_.erase(key);
+        }
         current_offset_ = offset + aligned_len;
     }
 
@@ -109,13 +115,6 @@ void  CoreWorker::submit(ReadRequest req)
 template <typename Q, typename T>
 void  CoreWorker::enqueue_blocking(Q& queue, T&& item)
 {
-    // T copy = item;
-    // while (!queue->try_push(std::move(copy))) 
-    // {
-    //     #if defined(__x86_64__)
-    //     _mm_pause();
-    //     #endif
-    // }
     while (!queue->try_push(std::move(item))) 
     {
         #if defined(__x86_64__)
@@ -145,8 +144,14 @@ void CoreWorker::run()
             current_offset_ += req->buf.size();
             uint32_t entry_size = req->buf.size();
             // 更新内存索引
-            // index_[std::move(req->key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
-            index_[req->key] = KeyLocation{ (uint64_t)write_pos, entry_size };
+            if (req->type == LogOp::PUT)
+            {
+                index_[std::move(req->key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
+            }
+            else if(req->type == LogOp::DELETE)
+            {
+                index_.erase(req->key);
+            }
 
             ctx_.SubmitWrite(device_->fd(), std::move(req->buf), write_pos, std::move(req->callback));
 

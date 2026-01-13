@@ -6,6 +6,7 @@
 
 #include "common/buffer.h"
 #include "common/common.h"
+#include "storage/log_entry.h"
 
 TITANKV_NAMESPACE_OPEN
 
@@ -19,6 +20,7 @@ struct WriteRequest
     AlignedBuffer buf;
     std::string key;
     off_t offset;
+    LogOp type;
     std::function<void(int)> callback;
 
     // 仅是多线程测试留的接口
@@ -26,8 +28,13 @@ struct WriteRequest
     :buf(std::move(b)), offset(o), callback(std::move(cb))
     {}
 
+    // 委托构造函数，委托下面的构造函数来初始化
     WriteRequest(AlignedBuffer&& b, std::string k, off_t o, std::function<void(int)> cb)
-    :buf(std::move(b)), key(std::move(k)), offset(o), callback(std::move(cb))
+    :WriteRequest(std::move(b), std::move(k), o, LogOp::PUT, std::move(cb))
+    {}
+
+    WriteRequest(AlignedBuffer&& b, std::string k, off_t o, LogOp op, std::function<void(int)> cb)
+    :buf(std::move(b)), key(std::move(k)), offset(o), type(op), callback(std::move(cb))
     {}
 
     WriteRequest() = default;
