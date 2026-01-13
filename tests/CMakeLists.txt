@@ -61,3 +61,9 @@ target_compile_options(test_recover PRIVATE -g -O0 -fno-omit-frame-pointer)
 add_executable(test_bench_rocks test_bench_rocks.cpp)
 target_link_libraries(test_bench_rocks PRIVATE titankv_core rocksdb pthread dl z)
 target_compile_options(test_bench_rocks PRIVATE -g -O0 -fno-omit-frame-pointer)
+
+# 6. 压缩功能的功能性测试
+add_executable(test_compaction test_compaction.cpp)
+target_link_libraries(test_compaction PRIVATE titankv_core)
+target_compile_options(test_compaction PRIVATE -g -O0 -fno-omit-frame-pointer)
+

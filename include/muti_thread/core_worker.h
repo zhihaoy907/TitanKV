@@ -39,11 +39,13 @@ public:
 
     void submit(ReadRequest req);
 
-    void recover();
-
     template <typename Q, typename T>
     void enqueue_blocking(Q& queue, T&& item);
     
+    void RewriteFile();
+
+    void recover();
+
 private:
     void run();
     std::string ExtractValue(const AlignedBuffer& buf, uint32_t len);

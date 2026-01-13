@@ -100,6 +100,13 @@ public:
         workers_[worker_idx]->submit(std::move(req));
     }
 
+    void Compact()
+    {
+        for (auto& w : workers_) 
+            w->RewriteFile();
+    }
+    
+
 private:
     std::vector<std::unique_ptr<CoreWorker>> workers_;
     std::vector<std::unique_ptr<std::mutex>> worker_mutexes_; 

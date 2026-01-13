@@ -123,6 +123,53 @@ void  CoreWorker::enqueue_blocking(Q& queue, T&& item)
     }
 }
 
+// 直接从index中写入，也能从硬盘中读取再写入。
+// 这取决于你使用的硬盘到底是机械硬盘还是固态硬盘，对于机械硬盘来说，由于log文件大概率是连续的而index的存储大概率不是联系的，所以性能瓶颈在磁盘扫盘中。
+// 因为我们想要探索在现代硬件的瓶颈，因此不认为扫盘是瓶颈，从而直接从index读取写入
+void CoreWorker::RewriteFile()
+{
+    while (!write_queue_->empty()) 
+        std::this_thread::yield();
+
+    std::string tmp_file = filename_ + ".tmp";
+
+    int new_fd = ::open(tmp_file.c_str(), O_RDWR | O_CREAT | O_TRUNC | O_DIRECT, 0644);
+    if(new_fd < 0)
+        return;
+
+    uint64_t new_offset = 0;
+
+    AlignedBuffer tmp_buf(4096);
+
+    for(auto& kv : index_)
+    {
+        const std::string& key = kv.first;
+        KeyLocation& loc = kv.second;
+
+        size_t aligned_len = (loc.len + 4095) & ~4095;
+
+        if(aligned_len > tmp_buf.size())
+        {
+            tmp_buf = AlignedBuffer(aligned_len);
+        }
+
+        ssize_t n = ::pread(device_->fd(), tmp_buf.data(), aligned_len, loc.offset);
+        if(n != (ssize_t)aligned_len)
+            continue;
+
+        n = ::pwrite(new_fd, tmp_buf.data(), aligned_len, new_offset);
+
+        loc.offset = new_offset;
+        new_offset += aligned_len;
+    }
+    ::close(new_fd);
+
+    ::rename(tmp_file.c_str(), filename_.c_str());
+    device_ = std::make_unique<RawDevice>(filename_);
+    fd_ = device_->fd();
+    current_offset_ = new_offset;
+}
+
 void CoreWorker::run() 
 {
     while(!stop_)
