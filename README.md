@@ -7,7 +7,8 @@
 
 ## 性能演进与结果
 测试环境：8核VMware + Ubuntu 22.04， 10万次随机写操作。
-通过三个阶段，在vmware+ubuntu 22.04 的八核六线程场景中将总耗时从 **5.1秒降低至1.47秒，整体提升71%**。
+通过三个阶段，在vmware+ubuntu 22.04 的八核六线程场景中将总耗时从 **5.1秒降低至1.47秒，时间减少71，整体IO性能提升250%**。
+在与100% 随机写入、4KB Payload、强一致性落盘场景下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB 的 2.34 倍**，详情见test_bench_rocks.cpp。
 1、基础I/O路径性能优化：实现了`io_uring` 替代 `pwrite`，将IO的时间从**5.1秒降低至2.4秒**，详情见test目录的test_iouring.cpp
 2、并发功能扩展：实现多线程 + CPU亲和性绑定，将IO的时间从**2.4秒降低至1.81秒**，详情见test目录的test_mutithread.cpp
 3、无锁SPSC队列：实现基于io_uring的SPSC的功能开发将IO的时间从**1.81秒降低至1.47秒**，详情见test目录的test_SPSCQueue.cpp。
