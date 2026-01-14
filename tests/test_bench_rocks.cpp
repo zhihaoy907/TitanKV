@@ -67,7 +67,7 @@ void bench_rocksdb()
     wo.sync = true;
     options.create_if_missing = true;
     options.write_buffer_size = 64 * 1024 * 1024; 
-    options.max_background_jobs = 4; 
+    options.max_background_jobs = 4;
 
     rocksdb::Status status = rocksdb::DB::Open(options, ROCKSDB_PATH, &db);
     if (!status.ok()) 
@@ -163,7 +163,8 @@ void bench_titankv()
     std::cout << "  -> Throughput: " << (double)TOTAL_OPS * VALUE_SIZE / 1024 / 1024 / elapsed << " MB/s" << std::endl;
 }
 
-int main() {
+int main() 
+{
     bench_rocksdb();
     bench_titankv();
     return 0;

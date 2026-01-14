@@ -16,20 +16,35 @@ TITANKV_NAMESPACE_OPEN
 class TitanEngine
 {
 public:
+    // 适配单client的情况，如果是多个client竞争的情况请使用下面的构造函数，以防止多个client竞争导致数据损坏
     TitanEngine(const std::string& file_path, unsigned thread_num)
     {
         workers_.reserve(thread_num);
-        worker_mutexes_.reserve(thread_num);
 
         for(unsigned i = 0; i < thread_num; ++i) 
         {
             workers_.emplace_back(std::make_unique<CoreWorker>(i, file_path));
-            worker_mutexes_.emplace_back(std::make_unique<std::mutex>());
         }
         
         for(auto& w:workers_) 
             w->start();
     }
+
+
+    // TitanEngine(const std::string& file_path, unsigned thread_num)
+    // {
+    //     workers_.reserve(thread_num);
+    //     worker_mutexes_.reserve(thread_num);
+
+    //     for(unsigned i = 0; i < thread_num; ++i) 
+    //     {
+    //         workers_.emplace_back(std::make_unique<CoreWorker>(i, file_path));
+    //         worker_mutexes_.emplace_back(std::make_unique<std::mutex>());
+    //     }
+        
+    //     for(auto& w:workers_) 
+    //         w->start();
+    // }
 
     ~TitanEngine()
     {
@@ -71,7 +86,7 @@ public:
         WriteRequest req(std::move(buffer), key, 0, std::move(on_complete));
 
         {
-            std::lock_guard<std::mutex> lock(*worker_mutexes_[worker_idx]);
+            // std::lock_guard<std::mutex> lock(*worker_mutexes_[worker_idx]);
             workers_[worker_idx]->submit(std::move(req));
         }
     }
@@ -109,7 +124,8 @@ public:
 
 private:
     std::vector<std::unique_ptr<CoreWorker>> workers_;
-    std::vector<std::unique_ptr<std::mutex>> worker_mutexes_; 
+    // 适配单client的情况
+    // std::vector<std::unique_ptr<std::mutex>> worker_mutexes_; 
 };
 
 

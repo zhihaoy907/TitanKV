@@ -1,0 +1,38 @@
+#!/usr/bin/env bpftrace
+#include <linux/futex.h>
+
+BEGIN
+{
+    printf("Tracing FUTEX_WAIT contention for PID %d...\n", pid);
+    printf("Hit Ctrl-C to end.\n\n");
+}
+
+tracepoint:syscalls:sys_enter_futex
+/ pid == (uint64)pid &&
+  ((args->op & FUTEX_CMD_MASK) == FUTEX_WAIT ||
+   (args->op & FUTEX_CMD_MASK) == FUTEX_WAIT_BITSET) /
+{
+    @wait_start[tid] = nsecs;
+    @wait_addr[tid]  = args->uaddr;
+}
+
+tracepoint:syscalls:sys_exit_futex
+/ pid == (uint64)pid && @wait_start[tid] /
+{
+    $delta = nsecs - @wait_start[tid];
+
+    @wait_ns = hist($delta);
+    @wait_count[@wait_addr[tid]] += 1;
+    @wait_time_ns[@wait_addr[tid]] += $delta;
+
+    delete(@wait_start[tid]);
+    delete(@wait_addr[tid]);
+}
+
+END
+{
+    printf("\n========== Futex Contention Summary (PID %d) ==========\n\n", pid);
+    print(@wait_ns);
+    print(@wait_count);
+    print(@wait_time_ns);
+}

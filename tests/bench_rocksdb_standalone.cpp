@@ -1,0 +1,98 @@
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <string>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <cstring>
+#include <iomanip>
+#include <unistd.h>
+
+// RocksDB 头文件
+#include <rocksdb/db.h>
+#include <rocksdb/options.h>
+
+// ==========================================
+// 统一配置参数
+// ==========================================
+const int NUM_THREADS = std::thread::hardware_concurrency() - 2; // 客户端并发数
+const int NUM_KEYS_PER_THREAD = 25000;// 每个线程写多少
+const int TOTAL_OPS = NUM_THREADS * NUM_KEYS_PER_THREAD;
+const int VALUE_SIZE = 4096;          // 4KB
+const std::string ROCKSDB_PATH = "./bench_rocksdb_data";
+const std::string TITANKV_PATH = "./bench_titankv_data";
+
+
+void wait_for_attach() 
+{
+    std::cout << "PID: " << getpid() << std::endl;
+    std::cout << "Press ENTER to start benchmark..." << std::endl;
+    std::cin.get(); // 阻塞等待回车
+}
+
+// 辅助：生成 Value
+std::string gen_value() 
+{
+    return std::string(VALUE_SIZE, 'v');
+}
+
+// ==========================================
+// 1. RocksDB Benchmark
+// ==========================================
+void bench_rocksdb() 
+{
+    std::cout << "------------------------------------------------" << std::endl;
+    std::cout << "[Bench] RocksDB (Default: WAL + MemTable)..." << std::endl;
+
+    if (std::filesystem::exists(ROCKSDB_PATH)) std::filesystem::remove_all(ROCKSDB_PATH);
+
+    rocksdb::DB* db;
+    rocksdb::Options options;
+    rocksdb::WriteOptions wo;
+    wo.sync = true;
+    options.create_if_missing = true;
+    options.write_buffer_size = 64 * 1024 * 1024; 
+    options.max_background_jobs = 4; 
+
+    rocksdb::Status status = rocksdb::DB::Open(options, ROCKSDB_PATH, &db);
+    if (!status.ok()) 
+    {
+        std::cerr << "Open RocksDB failed: " << status.ToString() << std::endl;
+        return;
+    }
+
+    std::string value = gen_value();
+    std::vector<std::thread> threads;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int t = 0; t < NUM_THREADS; ++t) 
+    {
+        threads.emplace_back([&, t]() {
+            for (int i = 0; i < NUM_KEYS_PER_THREAD; ++i) 
+            {
+                std::string key = "key_" + std::to_string(t) + "_" + std::to_string(i);
+                db->Put(wo, key, value);
+            }
+        });
+    }
+
+    for (auto& t : threads) 
+        t.join();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    double elapsed = std::chrono::duration<double>(end - start).count();
+    
+    std::cout << "  -> Time: " << elapsed << " s" << std::endl;
+    std::cout << "  -> IOPS: " << TOTAL_OPS / elapsed << std::endl;
+    std::cout << "  -> Throughput: " << (double)TOTAL_OPS * VALUE_SIZE / 1024 / 1024 / elapsed << " MB/s" << std::endl;
+
+    delete db;
+}
+
+int main() 
+{
+    wait_for_attach();
+    bench_rocksdb();
+    return 0;
+}

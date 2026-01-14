@@ -52,18 +52,25 @@ add_executable(test_concurrency test_concurrency.cpp)
 target_link_libraries(test_concurrency PRIVATE titankv_core)
 target_compile_options(test_concurrency PRIVATE -g -O0 -fno-omit-frame-pointer)
 
-# 6. 异常恢复的功能性测试
+# 7. 异常恢复的功能性测试
 add_executable(test_recover test_recover.cpp)
 target_link_libraries(test_recover PRIVATE titankv_core)
 target_compile_options(test_recover PRIVATE -g -O0 -fno-omit-frame-pointer)
 
-# 6. 跟RocksDB的性能基准测试
+# 8. 跟RocksDB的性能基准测试
 add_executable(test_bench_rocks test_bench_rocks.cpp)
 target_link_libraries(test_bench_rocks PRIVATE titankv_core rocksdb pthread dl z)
 target_compile_options(test_bench_rocks PRIVATE -g -O0 -fno-omit-frame-pointer)
 
-# 6. 压缩功能的功能性测试
+# 9. 压缩功能的功能性测试
 add_executable(test_compaction test_compaction.cpp)
 target_link_libraries(test_compaction PRIVATE titankv_core)
 target_compile_options(test_compaction PRIVATE -g -O0 -fno-omit-frame-pointer)
 
+# 10. 基于ebpf与rocksdb的性能基准测试
+add_executable(bench_rocksdb_standalone bench_rocksdb_standalone.cpp)
+target_link_libraries(bench_rocksdb_standalone PRIVATE titankv_core rocksdb pthread dl z)
+target_compile_options(bench_rocksdb_standalone PRIVATE -g -O0 -fno-omit-frame-pointer)
+add_executable(bench_titankv_standalone bench_titankv_standalone.cpp)
+target_link_libraries(bench_titankv_standalone PRIVATE titankv_core)
+target_compile_options(bench_titankv_standalone PRIVATE -g -O0 -fno-omit-frame-pointer)
