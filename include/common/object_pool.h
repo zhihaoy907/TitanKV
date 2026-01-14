@@ -101,6 +101,11 @@ public:
         in_use_--;
     }
 
+    inline unsigned in_use()
+    {
+        return in_use_;
+    }
+
 private:
 
     void expand() 

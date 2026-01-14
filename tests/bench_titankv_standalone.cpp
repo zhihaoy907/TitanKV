@@ -13,7 +13,7 @@
 
 using namespace titankv;
 
-const int DURATION_SEC = 5;
+const int DURATION_SEC = 15;
 const int NUM_THREADS = 1;
 const int VALUE_SIZE = 4096;
 
@@ -32,7 +32,7 @@ void prove_lockless()
     std::cout << "============================================" << std::endl;
     std::cout << "PID: " << getpid() << std::endl;
     std::cout << "1. Open another terminal." << std::endl;
-    std::cout << "2. Run: sudo ./tools/trace_futex.bt " << getpid() << std::endl;
+    std::cout << "2. Run: sudo ../tools/analyze_lock.bt " << getpid() << std::endl;
     std::cout << "3. Press ENTER here to START." << std::endl;
     std::cin.get();
 

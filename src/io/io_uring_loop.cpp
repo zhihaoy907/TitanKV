@@ -1,4 +1,5 @@
 #include <cstring>
+#include <thread>
 
 #include "io/io_uring_loop.h"
 
@@ -125,4 +126,14 @@ void IoContext::RunOnce()
 void IoContext::Submit() 
 {
     io_uring_submit(&ring_);
+}
+
+void IoContext::Drain() 
+{
+    while (request_pool_.in_use() > 0) 
+    {
+        io_uring_submit(&ring_);
+        RunOnce();
+        std::this_thread::yield();
+    }
 }

@@ -45,6 +45,8 @@ public:
 
     void Submit();
 
+    void Drain();
+
 private:
     struct io_uring ring_;
     ObjectPool<IoRequest> request_pool_; 
