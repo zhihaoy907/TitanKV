@@ -38,7 +38,8 @@ using namespace titankv;
 // ==========================================
 // 统一配置参数
 // ==========================================
-const int NUM_THREADS = std::thread::hardware_concurrency() - 2; // 客户端并发数
+// const int NUM_THREADS = std::thread::hardware_concurrency() - 2; // 客户端并发数
+const int NUM_THREADS = 1;
 const int NUM_KEYS_PER_THREAD = 25000;// 每个线程写多少
 const int TOTAL_OPS = NUM_THREADS * NUM_KEYS_PER_THREAD;
 const int VALUE_SIZE = 4096;          // 4KB
