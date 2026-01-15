@@ -39,6 +39,9 @@
 
 
 详细输出见下：
+
+**TitanKV输出**
+
 (base) zhihaoy@virtual-machine:~/workspace/github/TitanKV/build$ sudo ../tools/analyze_lock.bt 23035
 ../tools/analyze_lock.bt:47:18-20: WARNING: comparison of integers of different signs: 'int32' and 'unsigned int64' can lead to undefined behavior
 / args->prev_pid == (uint64)pid /
@@ -768,6 +771,8 @@ Hit Ctrl-C to end.
 @waits_by_tid[23036]: 318
 @waits_by_tid[23037]: 407
 @waits_by_tid[19797]: 15316
+
+**Rocksdb输出**
 
 (base) zhihaoy@virtual-machine:~/workspace/github/TitanKV/build$ sudo ../tools/analyze_lock.bt 23088
 ../tools/analyze_lock.bt:47:18-20: WARNING: comparison of integers of different signs: 'int32' and 'unsigned int64' can lead to undefined behavior
@@ -1688,5 +1693,6 @@ Hit Ctrl-C to end.
 @waits_by_tid[19778]: 243
 @waits_by_tid[19742]: 275
 @waits_by_tid[19797]: 26551
+
 
 
