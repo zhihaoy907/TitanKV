@@ -24,9 +24,9 @@ TitanKV: 应集中在微秒级（主要来自 Client 端的内存分配锁），
 **案例：TitanKV vs RocksDB 实战对比**
 以下数据采集自 4 核 VM 环境，4KB 随机写入场景。
 1. 锁竞争 (Futex Wait)
-RocksDB (Sync模式): 触发了 28241次 内核锁等待，长尾延迟高达 2ms。
-TitanKV: 触发了 16890次 等待（主要来自测试框架本身），P99 延迟稳定在 500us 以下。Worker 线程零竞争。
+RocksDB (Sync模式): 触发了 **28241次** 内核锁等待，长尾延迟高达 **2ms**。
+TitanKV: 触发了 **16890次** 等待（主要来自测试框架本身），P99 延迟稳定在 500us 以下。Worker 线程零竞争。
 2. 上下文切换 (Context Switch)
-RocksDB: 总计 315728 次切换 (Involuntary Context Switches)。CPU 大量时间浪费在调度上。
-TitanKV: 总计 26862 次切换。TPC 绑核策略成功减少了 91% 的调度开销。
+RocksDB: 总计 **315728** 次切换 (Involuntary Context Switches)。CPU 大量时间浪费在调度上。
+TitanKV: 总计 **26862** 次切换。TPC 绑核策略成功减少了 **91%** 的调度开销。
 (详细输出见项目根目录 docs/titanvsrocsdb.md)
