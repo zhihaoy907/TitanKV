@@ -6,11 +6,8 @@
 
 **环境要求**
 OS: Linux Kernel 5.x 及以上（需要支持 BTF）。
-
 工具: bpftrace。
-
 Ubuntu 环境安装：
-
 sudo apt-get install bpftrace
 
 **核心目的:**
