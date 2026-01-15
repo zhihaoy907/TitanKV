@@ -1,91 +1,106 @@
 #include <iostream>
 #include <vector>
 #include <thread>
+#include <string>
 #include <atomic>
 #include <chrono>
-#include <cstring>
-#include <unistd.h>
 #include <filesystem>
+#include <cstring>
 #include <iomanip>
+#include <unistd.h> // getpid
 
+// TitanKV 头文件
 #include "muti_thread/titan_engine.h"
 #include "common/buffer.h"
 
 using namespace titankv;
 
-const int DURATION_SEC = 15;
+// ==========================================
+// 统一配置参数
+// ==========================================
+// const int NUM_THREADS = std::thread::hardware_concurrency() > 2 ? std::thread::hardware_concurrency() - 2 : 1; 
 const int NUM_THREADS = 1;
-const int VALUE_SIZE = 4096;
+const int NUM_KEYS_PER_THREAD = 25000; // 每个线程写多少
+const int TOTAL_OPS = NUM_THREADS * NUM_KEYS_PER_THREAD;
+const int VALUE_SIZE = 4096;           // 4KB
+const std::string TITANKV_PATH = "./bench_titankv_data";
 
-void prove_lockless() 
+std::string gen_value() 
 {
-    std::string path = "./prove_lockless_data";
-    if (std::filesystem::exists(path)) 
-        std::filesystem::remove_all(path);
-    std::filesystem::create_directory(path);
+    return std::string(VALUE_SIZE, 'v');
+}
 
-    // 2 个 Worker (绑核)
-    TitanEngine db(path, 2);
-
-    std::cout << "============================================" << std::endl;
-    std::cout << "   TitanKV Lockless Proof Benchmark         " << std::endl;
-    std::cout << "============================================" << std::endl;
+void wait_for_attach() 
+{
     std::cout << "PID: " << getpid() << std::endl;
     std::cout << "1. Open another terminal." << std::endl;
     std::cout << "2. Run: sudo ../tools/analyze_lock.bt " << getpid() << std::endl;
     std::cout << "3. Press ENTER here to START." << std::endl;
     std::cin.get();
+}
 
-    std::atomic<bool> running{true};
-    std::atomic<uint64_t> total_ops{0}; // 实时计数
-    std::vector<std::thread> threads;
+void bench_titankv() 
+{
+    std::cout << "------------------------------------------------" << std::endl;
+    std::cout << "[Bench] TitanKV (DirectIO + TPC)..." << std::endl;
+    std::cout << "  Threads: " << NUM_THREADS << std::endl;
+    std::cout << "  Total Ops: " << TOTAL_OPS << std::endl;
 
+    if (std::filesystem::exists(TITANKV_PATH)) 
+        std::filesystem::remove_all(TITANKV_PATH);
+    std::filesystem::create_directory(TITANKV_PATH);
+
+    TitanEngine db(TITANKV_PATH, 2); 
+
+    std::string value_str = gen_value();
+    
     AlignedBuffer template_buf(VALUE_SIZE);
-    std::memset(template_buf.data(), 'X', VALUE_SIZE);
+    std::memcpy(template_buf.data(), value_str.data(), VALUE_SIZE);
+
+    std::atomic<int> completed_count{0};
+    std::vector<std::thread> threads;
+    
+    // 等待 eBPF Attach
+    wait_for_attach();
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     // 启动 Client 线程
     for (int t = 0; t < NUM_THREADS; ++t) 
     {
-        threads.emplace_back([&, t]() 
-        {
-            uint64_t i = 0;
-            
-            while (running.load(std::memory_order_relaxed)) 
+        threads.emplace_back([&, t]() {
+            for (int i = 0; i < NUM_KEYS_PER_THREAD; ++i) 
             {
-                std::string key = "k_" + std::to_string(t) + "_" + std::to_string(i++);
+                std::string key = "key_" + std::to_string(t) + "_" + std::to_string(i);
                 
                 AlignedBuffer req_buf(VALUE_SIZE);
                 std::memcpy(req_buf.data(), template_buf.data(), VALUE_SIZE);
-
-                db.Put(key, std::string((char*)req_buf.data(), VALUE_SIZE), 
-                       [&](int){ 
-                           total_ops.fetch_add(1, std::memory_order_relaxed); 
-                       });
+                
+                db.Put(key, value_str, [&](int){
+                    completed_count.fetch_add(1, std::memory_order_relaxed);
+                });
             }
         });
     }
 
-    auto start = std::chrono::steady_clock::now();
-    for(int i=0; i<DURATION_SEC; ++i) 
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        uint64_t ops = total_ops.load(std::memory_order_relaxed);
-        std::cout << "[" << i+1 << "s] Total Ops: " << ops 
-                  << " (Avg: " << ops / (i+1) << " ops/s)" << std::endl;
-    }
-
-    running.store(false);
     for (auto& t : threads) 
         t.join();
-
-    auto end = std::chrono::steady_clock::now();
-    double elapsed = std::chrono::duration<double>(end - start).count();
     
-    std::cout << "Benchmark finished. Total: " << total_ops << " Time: " << elapsed << "s" << std::endl;
+    while (completed_count.load(std::memory_order_relaxed) < TOTAL_OPS) 
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    double elapsed = std::chrono::duration<double>(end - start).count();
+
+    std::cout << "  -> Time: " << elapsed << " s" << std::endl;
+    std::cout << "  -> IOPS: " << TOTAL_OPS / elapsed << std::endl;
+    std::cout << "  -> Throughput: " << (double)TOTAL_OPS * VALUE_SIZE / 1024 / 1024 / elapsed << " MB/s" << std::endl;
 }
 
 int main() 
 {
-    prove_lockless();
+    bench_titankv();
     return 0;
 }

@@ -264,5 +264,5 @@ void CoreWorker::run()
             std::this_thread::yield(); 
         }
     }
-    ctx_.Drain();
+    // ctx_.Drain();
 }

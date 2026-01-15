@@ -1,5 +1,6 @@
 #include <cstring>
 #include <thread>
+#include <iostream>
 
 #include "io/io_uring_loop.h"
 
@@ -134,6 +135,5 @@ void IoContext::Drain()
     {
         io_uring_submit(&ring_);
         RunOnce();
-        std::this_thread::yield();
     }
 }
