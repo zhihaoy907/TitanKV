@@ -10,10 +10,11 @@ sudo apt-get install bpftrace
 **核心目的:**
 验证 TitanKV Thread-per-Core (TPC) 架构是否真正实现了“无锁化”。
 该脚本追踪内核的 futex 系统调用，统计线程因争抢锁而陷入睡眠的频率和时长。
-使用方法:
-# 1. 启动压测程序，获取 PID (例如 12345)
-# 2. 运行脚本
+**使用方法:**
+1. 启动压测程序，获取 PID (例如 12345)
+2. 运行脚本
 sudo ./analyze_lock.bt -p 12345
+
 **关键指标解读:**
 @total_waits: 进程内所有线程触发内核态锁等待的总次数。
 @wait_ns: 等待耗时的直方图。
