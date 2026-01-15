@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <cstring>
 #include <iomanip>
-#include <unistd.h> // getpid
+#include <unistd.h>
 
 // TitanKV 头文件
 #include "muti_thread/titan_engine.h"

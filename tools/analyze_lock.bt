@@ -25,6 +25,9 @@ tracepoint:syscalls:sys_exit_futex
     @wait_count[@wait_addr[tid]] += 1;
     @wait_time_ns[@wait_addr[tid]] += $delta;
 
+    @total_waits += 1;          /* 全局锁等待总次数 */
+    @waits_by_tid[tid] += 1;    /* 每个线程的等待次数 */
+
     delete(@wait_start[tid]);
     delete(@wait_addr[tid]);
 }
@@ -32,7 +35,19 @@ tracepoint:syscalls:sys_exit_futex
 END
 {
     printf("\n========== Futex Contention Summary (PID %d) ==========\n\n", pid);
+
+    printf("---- Total Futex Wait Count ----\n");
+    print(@total_waits);
+
+    printf("\n---- Futex Wait Latency Histogram (ns) ----\n");
     print(@wait_ns);
+
+    printf("\n---- Futex Wait Count by Address ----\n");
     print(@wait_count);
+
+    printf("\n---- Futex Total Wait Time by Address (ns) ----\n");
     print(@wait_time_ns);
+
+    printf("\n---- Futex Wait Count by Thread ----\n");
+    print(@waits_by_tid);
 }
