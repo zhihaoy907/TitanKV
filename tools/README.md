@@ -1,10 +1,16 @@
 **TitanKV eBPF 可观测性工具箱 (Observability Tools)**
+
 本目录包含了一套基于 eBPF (bpftrace) 的深度性能分析脚本。
+
 这些工具旨在穿透用户态的迷雾，直接从 Linux 内核视角观测 TitanKV 的运行时行为。我们利用它们来验证架构设计的正确性（如无锁机制是否生效），并定位那些 perf 无法捕捉的深层瓶颈（如内核调度延迟、IO 提交阻塞）。
+
 **环境要求**
 OS: Linux Kernel 5.x 及以上（需要支持 BTF）。
+
 工具: bpftrace。
+
 Ubuntu 环境安装：
+
 sudo apt-get install bpftrace
 
 **核心目的:**
