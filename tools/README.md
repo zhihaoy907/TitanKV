@@ -20,10 +20,15 @@ sudo apt-get install bpftrace
 sudo ./analyze_lock.bt -p 12345
 
 **关键指标解读:**
+
 @total_waits: 进程内所有线程触发内核态锁等待的总次数。
+
 @wait_ns: 等待耗时的直方图。
+
 RocksDB: 通常呈现长尾分布（毫秒级），说明发生了严重的 Convoy Effect（护航效应）。
+
 TitanKV: 应集中在微秒级（主要来自 Client 端的内存分配锁），Worker 线程应接近 0。
+
 @waits_by_tid: 按线程 ID 统计。CoreWorker 线程的计数应极低。
 
 **案例：TitanKV vs RocksDB 实战对比**
