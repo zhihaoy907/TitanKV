@@ -117,19 +117,25 @@ void  CoreWorker::submit(ReadRequest req)
 }
 
 template <typename Q, typename T>
-void  CoreWorker::enqueue_blocking(Q& queue, T&& item)
+void CoreWorker::enqueue_blocking(Q& queue, T&& item)
 {
 #ifdef TITAN_USE_MPSC
-    queue.enqueue(std::move(item));
-#else
-    while (!queue->try_push(std::move(item))) 
+    while (!queue.enqueue(item))
     {
-        #if defined(__x86_64__)
+#if defined(__x86_64__)
         _mm_pause();
-        #endif
+#endif
+    }
+#else
+    while (!queue->try_push(item))
+    {
+#if defined(__x86_64__)
+        _mm_pause();
+#endif
     }
 #endif
 }
+
 
 // 直接从index中写入，也能从硬盘中读取再写入。
 // 这取决于你使用的硬盘到底是机械硬盘还是固态硬盘，对于机械硬盘来说，由于log文件大概率是连续的而index的存储大概率不是联系的，所以性能瓶颈在磁盘扫盘中。
@@ -215,22 +221,46 @@ void CoreWorker::run()
         // -------------------------------------------------------
         if(write_count > 0)
         {
+            size_t raw_size = 0;
+            for(const auto& req : write_batch)
+                raw_size += req.buf.size();
+
+            size_t aligned_size = (raw_size + 4095) & ~4095;
+            AlignedBuffer group_buf(aligned_size);
+
+            size_t current_offset_in_group = 0;
+
+            auto callbacks = std::make_shared<std::vector<std::function<void(int)>>>();
+            callbacks->reserve(write_batch.size());
+            off_t write_pos_start = current_offset_;
+
             for(auto& req : write_batch)
             {
-                off_t write_pos = current_offset_;
-                current_offset_ += req.buf.size();
-                uint32_t entry_size = req.buf.size();
+                memcpy(group_buf.data() + current_offset_in_group, req.buf.data(), req.buf.size());
+
                 // 更新内存索引
                 if (req.type == LogOp::PUT)
                 {
-                    index_[std::move(req.key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
+                    index_[std::move(req.key)] = KeyLocation{ (uint64_t)(write_pos_start + current_offset_in_group), (uint32_t)req.buf.size() };
                 }
                 else if(req.type == LogOp::DELETE)
                 {
                     index_.erase(req.key);
                 }
-                ctx_.SubmitWrite(device_->fd(), std::move(req.buf), write_pos, std::move(req.callback));
+
+                if(req.callback)
+                    callbacks->push_back(std::move(req.callback));
+                
+                current_offset_in_group += req.buf.size();
             }
+            current_offset_ += aligned_size;
+            ctx_.SubmitWrite(device_->fd(), 
+                            std::move(group_buf),  
+                            write_pos_start, 
+                            [cb_list = callbacks](int res) {
+                                for (auto& cb : *cb_list) cb(res);
+                            });
+
             write_batch.clear();
         }
 
