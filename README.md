@@ -7,6 +7,7 @@
 
 
 ## 性能演进与结果
+**数据结构设计与演进**
 测试环境：8核VMware + Ubuntu 22.04， 10万次随机写操作。
 通过三个阶段，在vmware+ubuntu 22.04 的八核六线程场景中将总耗时从 **5.1秒降低至1.47秒，时间减少71，整体IO性能提升250%**。
 
@@ -21,6 +22,10 @@
 在与100% 随机写入、4KB Payload、强一致性落盘、SPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 4.186 倍**，详情见docs/titankv_vs_rocksdb_spsc.md。
 
 在与100% 随机写入、4KB Payload、强一致性落盘、MPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 2.49 倍**，详情见docs/titankv_vs_rocksdb_mpsc.md。
+
+**性能优化演进**
+
+1、新增批处理机制。在与100% 随机写入、4KB Payload、强一致性落盘、MPSC架构下，显著提升系统吞吐量。具体数值取决于IO过程中有多少小提交请求，不好量化。详情见docs/batch_submit.md
 
 
 ## 后续目标
