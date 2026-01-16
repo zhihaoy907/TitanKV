@@ -18,9 +18,9 @@
 
 **与RocksDB数据库引擎的对比**：
 
-在与100% 随机写入、4KB Payload、强一致性落盘、SPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 4.186 倍**，详情见docs/TitanKV 与 RocksDB 在 SPSC 架构的性能对比。
+在与100% 随机写入、4KB Payload、强一致性落盘、SPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 4.186 倍**，详情见docs/titankv_vs_rocksdb_spsc.md。
 
-在与100% 随机写入、4KB Payload、强一致性落盘、MPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 2.49 倍**，详情见docs/TitanKV 与 RocksDB 在 MPSC 架构的性能对比。
+在与100% 随机写入、4KB Payload、强一致性落盘、MPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 2.49 倍**，详情见docs/titankv_vs_rocksdb_mpsc.md。
 
 
 ## 后续目标
