@@ -8,11 +8,21 @@
 #include <unistd.h>
 #include <map>
 
+#include "common.h"
 #include "io/io_uring_loop.h"
 #include "io/raw_device.h"
 #include "common/buffer.h"
-#include "muti_thread/SPSCQueue.h"
-#include "common.h"
+
+
+#ifdef TITAN_USE_MPSC
+#ifdef BLOCK_SIZE
+#undef BLOCK_SIZE
+#endif
+    #include "common/concurrentqueue.h"
+#else
+    #include "common/SPSCQueue.h"
+#endif
+
 
 TITANKV_NAMESPACE_OPEN
 
@@ -50,8 +60,15 @@ private:
     void run();
     std::string ExtractValue(const AlignedBuffer& buf, uint32_t len);
 
-    std::unique_ptr<rigtorp::SPSCQueue<ReadRequest>> read_queue_; 
-    std::unique_ptr<rigtorp::SPSCQueue<WriteRequest>> write_queue_; 
+#ifdef TITAN_USE_MPSC
+    // MPSC 架构
+    moodycamel::ConcurrentQueue<ReadRequest> read_queue_;
+    moodycamel::ConcurrentQueue<WriteRequest> write_queue_;
+#else
+    // SPSC 架构
+    std::unique_ptr<rigtorp::SPSCQueue<ReadRequest>> read_queue_;
+    std::unique_ptr<rigtorp::SPSCQueue<WriteRequest>> write_queue_;
+#endif
     std::unique_ptr<RawDevice> device_;
     std::atomic<bool> stop_;
     std::thread thread_;

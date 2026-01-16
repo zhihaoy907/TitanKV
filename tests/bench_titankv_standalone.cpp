@@ -1,3 +1,10 @@
+/*
+titankv的随机写入效率测试代码。
+titankv支持SPSC+MPSC架构，但是由于为了跟Rocksdb对比极致的性能，因此SPSC未加锁.
+所以如果在编译选项没加 -DUSE_MPSC_QUEUE=ON 开启MPSC功能，
+请将 NUM_THREADS设置为1，否则由于Put时竞争会导致Iorequest的数据损坏，测试代码死循环
+*/
+
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -19,7 +26,7 @@ using namespace titankv;
 // 统一配置参数
 // ==========================================
 // const int NUM_THREADS = std::thread::hardware_concurrency() > 2 ? std::thread::hardware_concurrency() - 2 : 1; 
-const int NUM_THREADS = 1;
+const int NUM_THREADS = 2;
 const int NUM_KEYS_PER_THREAD = 25000; // 每个线程写多少
 const int TOTAL_OPS = NUM_THREADS * NUM_KEYS_PER_THREAD;
 const int VALUE_SIZE = 4096;           // 4KB
@@ -46,8 +53,7 @@ void bench_titankv()
     std::cout << "  Threads: " << NUM_THREADS << std::endl;
     std::cout << "  Total Ops: " << TOTAL_OPS << std::endl;
 
-    if (std::filesystem::exists(TITANKV_PATH)) 
-        std::filesystem::remove_all(TITANKV_PATH);
+    if (std::filesystem::exists(TITANKV_PATH)) std::filesystem::remove_all(TITANKV_PATH);
     std::filesystem::create_directory(TITANKV_PATH);
 
     TitanEngine db(TITANKV_PATH, 2); 

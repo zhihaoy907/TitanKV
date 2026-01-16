@@ -12,11 +12,12 @@
 // RocksDB 头文件
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
+#include <rocksdb/table.h> // 引入 table.h 以配置 BlockCache
 
 // ==========================================
 // 统一配置参数
 // ==========================================
-const int NUM_THREADS = 1; // 客户端并发数
+const int NUM_THREADS = 2; // 客户端并发数
 const int NUM_KEYS_PER_THREAD = 25000;// 每个线程写多少
 const int TOTAL_OPS = NUM_THREADS * NUM_KEYS_PER_THREAD;
 const int VALUE_SIZE = 4096;          // 4KB
@@ -28,7 +29,7 @@ void wait_for_attach()
 {
     std::cout << "PID: " << getpid() << std::endl;
     std::cout << "Press ENTER to start benchmark..." << std::endl;
-    std::cin.get(); // 阻塞等待回车
+    std::cin.get();
 }
 
 // 辅助：生成 Value
@@ -43,17 +44,27 @@ std::string gen_value()
 void bench_rocksdb() 
 {
     std::cout << "------------------------------------------------" << std::endl;
-    std::cout << "[Bench] RocksDB (Default: WAL + MemTable)..." << std::endl;
-
+    std::cout << "[Bench] RocksDB (O_DIRECT Enabled)..." << std::endl;
+    std::cout << "  Threads: " << NUM_THREADS << std::endl;
+    std::cout << "  Total Ops: " << TOTAL_OPS << std::endl;
+    
     if (std::filesystem::exists(ROCKSDB_PATH)) std::filesystem::remove_all(ROCKSDB_PATH);
 
     rocksdb::DB* db;
     rocksdb::Options options;
     rocksdb::WriteOptions wo;
-    wo.sync = true;
+    wo.sync = true; 
+
     options.create_if_missing = true;
     options.write_buffer_size = 64 * 1024 * 1024; 
     options.max_background_jobs = 4; 
+
+    options.use_direct_io_for_flush_and_compaction = true;
+    options.use_direct_reads = true;
+
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.block_cache = rocksdb::NewLRUCache(64 * 1024 * 1024); // 64MB Cache
+    options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::Status status = rocksdb::DB::Open(options, ROCKSDB_PATH, &db);
     if (!status.ok()) 

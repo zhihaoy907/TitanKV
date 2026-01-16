@@ -19,6 +19,16 @@ add_compile_options(-Wall -Wextra -pedantic)
 # io_uring O_DIRECT 必需宏
 add_definitions(-D_GNU_SOURCE) 
 
+# 默认关闭 MPSC，使用原来的 SPSC 架构
+option(USE_MPSC_QUEUE "Use Lock-free MPSC queue instead of SPSC" OFF)
+
+if(USE_MPSC_QUEUE)
+    add_definitions(-DTITAN_USE_MPSC)
+    message(STATUS "Build Strategy: MPSC (Lock-free, Multi-Producer)")
+else()
+    message(STATUS "Build Strategy: SPSC (Single-Producer, requires external locking)")
+endif()
+
 # ==========================================
 # 2. 依赖查找 (LibUring)
 # ==========================================

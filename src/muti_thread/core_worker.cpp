@@ -19,8 +19,12 @@ CoreWorker::CoreWorker(unsigned core_id, const std::string& file_path)
 
     current_offset_ = 0;
 
+// SPSC架构下的初始化，MPSC会按需分配
+#ifndef TITAN_USE_MPSC
     write_queue_ = std::make_unique<rigtorp::SPSCQueue<WriteRequest>>(QUEUE_CAPACITY);
     read_queue_ = std::make_unique<rigtorp::SPSCQueue<ReadRequest>>(QUEUE_CAPACITY);
+#endif
+
 }
  
 void CoreWorker::start()
@@ -115,12 +119,16 @@ void  CoreWorker::submit(ReadRequest req)
 template <typename Q, typename T>
 void  CoreWorker::enqueue_blocking(Q& queue, T&& item)
 {
+#ifdef TITAN_USE_MPSC
+    queue.enqueue(std::move(item));
+#else
     while (!queue->try_push(std::move(item))) 
     {
         #if defined(__x86_64__)
         _mm_pause();
         #endif
     }
+#endif
 }
 
 // 直接从index中写入，也能从硬盘中读取再写入。
@@ -128,8 +136,13 @@ void  CoreWorker::enqueue_blocking(Q& queue, T&& item)
 // 因为我们想要探索在现代硬件的瓶颈，因此不认为扫盘是瓶颈，从而直接从index读取写入
 void CoreWorker::RewriteFile()
 {
+#ifdef TITAN_USE_MPSC
+    while (write_queue_.size_approx() > 0) 
+        std::this_thread::yield();
+#else
     while (!write_queue_->empty()) 
         std::this_thread::yield();
+#endif
 
     std::string tmp_file = filename_ + ".tmp";
 
@@ -143,7 +156,6 @@ void CoreWorker::RewriteFile()
 
     for(auto& kv : index_)
     {
-        const std::string& key = kv.first;
         KeyLocation& loc = kv.second;
 
         size_t aligned_len = (loc.len + 4095) & ~4095;
@@ -172,87 +184,116 @@ void CoreWorker::RewriteFile()
 
 void CoreWorker::run() 
 {
+    // 预分配内存，避免热路径上的扩容
+    std::vector<WriteRequest> write_batch;
+    write_batch.reserve(URING_CQ_BATCH);
+
+    std::vector<ReadRequest> read_batch;
+    read_batch.reserve(URING_CQ_BATCH);
+
     while(!stop_)
     {
         ctx_.RunOnce();
 
-        unsigned count = 0;
+        // 捞取写请求
+#ifdef TITAN_USE_MPSC
+        size_t write_count = write_queue_.try_dequeue_bulk(std::back_inserter(write_batch), URING_CQ_BATCH);
+#else
+        size_t write_count = 0;
+        while(write_count < URING_CQ_BATCH)
+        {
+            auto* req = write_queue_->front();
+            if(!req) break;
 
+            write_batch.emplace_back(std::move(*req));
+            write_queue_->pop();
+            write_count++;
+        }
+#endif
         // -------------------------------------------------------
         // 批量处理写请求
         // -------------------------------------------------------
-        while(count < URING_CQ_BATCH)
+        if(write_count > 0)
         {
-            auto* req = write_queue_->front();
-            if(!req)
-                break;
-
-            off_t write_pos = current_offset_;
-            current_offset_ += req->buf.size();
-            uint32_t entry_size = req->buf.size();
-            // 更新内存索引
-            if (req->type == LogOp::PUT)
+            for(auto& req : write_batch)
             {
-                index_[std::move(req->key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
+                off_t write_pos = current_offset_;
+                current_offset_ += req.buf.size();
+                uint32_t entry_size = req.buf.size();
+                // 更新内存索引
+                if (req.type == LogOp::PUT)
+                {
+                    index_[std::move(req.key)] = KeyLocation{ (uint64_t)write_pos, entry_size };
+                }
+                else if(req.type == LogOp::DELETE)
+                {
+                    index_.erase(req.key);
+                }
+                ctx_.SubmitWrite(device_->fd(), std::move(req.buf), write_pos, std::move(req.callback));
             }
-            else if(req->type == LogOp::DELETE)
-            {
-                index_.erase(req->key);
-            }
-
-            ctx_.SubmitWrite(device_->fd(), std::move(req->buf), write_pos, std::move(req->callback));
-
-            write_queue_->pop();
-            count++;
+            write_batch.clear();
         }
+
+        // 捞取读请求
+#ifdef TITAN_USE_MPSC
+        size_t read_count = read_queue_.try_dequeue_bulk(std::back_inserter(read_batch), URING_CQ_BATCH);
+#else
+        size_t read_count = 0;
+        while(read_count < URING_CQ_BATCH) 
+        {
+            auto* req = read_queue_->front();
+            if(!req) break;
+            read_batch.emplace_back(std::move(*req));
+            read_queue_->pop();
+            read_count++;
+        }
+#endif
 
         // -------------------------------------------------------
         // 批量处理读请求
         // -------------------------------------------------------
-        while(count < URING_CQ_BATCH)
+        if(read_count > 0)
         {
-            auto* req = read_queue_->front();
-            if(!req)
-                break;
-                        
-            auto it = index_.find(req->key);
-            
-            if(it != index_.end()) [[likely]]
+            for(auto& req : read_batch)
             {
-                KeyLocation loc = it->second;
-                size_t aligned_len = (loc.len + 4095) &~ 4095;
-                AlignedBuffer buf(aligned_len);
-                auto user_cb = std::move(req->callback);
+                auto it = index_.find(req.key);
 
-                ctx_.SubmitRead(device_->fd(),
-                                std::move(buf),
-                                loc.offset,
-                                aligned_len,
-                                [this, user_cb, loc](int res, AlignedBuffer& data_buf) 
-                                {
-                                    if (res < 0) 
+                if(it != index_.end()) [[likely]]
+                {
+                    KeyLocation loc = it->second;
+                    size_t aligned_len = (loc.len + 4095) &~ 4095;
+                    AlignedBuffer buf(aligned_len);
+                    auto user_cb = std::move(req.callback);
+
+                    ctx_.SubmitRead(device_->fd(),
+                                    std::move(buf),
+                                    loc.offset,
+                                    aligned_len,
+                                    [this, user_cb, loc](int res, AlignedBuffer& data_buf) 
                                     {
-                                        user_cb("");
-                                    } 
-                                    else 
-                                    {
-                                        // 反序列化
-                                        std::string value = ExtractValue(data_buf, loc.len);
-                                        user_cb(std::move(value));
-                                    }
-                                });
-                count++;
+                                        if (res < 0) 
+                                        {
+                                            user_cb("");
+                                        } 
+                                        else 
+                                        {
+                                            // 反序列化
+                                            std::string value = ExtractValue(data_buf, loc.len);
+                                            user_cb(std::move(value));
+                                        }
+                                    });
+                }
+                else [[unlikely]]
+                {
+                    if(req.callback)
+                        req.callback(""); 
+                }
             }
-            else [[unlikely]]
-            {
-                if(req->callback)
-                    req->callback(""); 
-            }
-            read_queue_->pop();
+            read_batch.clear();
         }
 
 
-        if (count > 0) 
+        if (write_count > 0 || read_count > 0) 
         {
             ctx_.Submit(); 
         } 
@@ -264,5 +305,4 @@ void CoreWorker::run()
             std::this_thread::yield(); 
         }
     }
-    // ctx_.Drain();
 }
