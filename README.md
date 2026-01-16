@@ -6,7 +6,9 @@
 **核心目标**：量化验证在纯软件层面，通过系统编程与并发架构设计，能多大程度压榨出现代硬件（多核CPU、高速SSD）的I/O性能。
 
 **现阶段性能基准测试结果**：
+
 在与100% 随机写入、4KB Payload、强一致性落盘、SPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 4.186 倍**，详情见docs/TitanKV 与 RocksDB 在 SPSC 架构的性能对比。
+
 在与100% 随机写入、4KB Payload、强一致性落盘、MPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 2.49 倍**，详情见docs/TitanKV 与 RocksDB 在 MPSC 架构的性能对比。
 
 ## 性能演进与结果
