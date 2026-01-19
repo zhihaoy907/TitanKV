@@ -16,6 +16,7 @@ IoContext::IoContext(unsigned entries)
     // 针对资源比较紧张的情况下先注释掉，
     // 减少内核线程抢占用户态线程，增加测试稳定性
     // params.flags |= IORING_SETUP_SQPOLL;
+    // params.flags |= IORING_SETUP_IOPOLL;
 
     int ret = io_uring_queue_init_params(entries, &ring_, &params);
     if(ret < 0) [[unlikely]]

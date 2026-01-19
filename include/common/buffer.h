@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <iostream>
 
 
 #include "common/common.h"
@@ -16,32 +19,85 @@ public:
     
     static constexpr size_t kAlignment = 4096;
 
+    // 只有当申请大小 >= 64KB 时才尝试大页，否则直接走 malloc
     AlignedBuffer(size_t size = kAlignment) : size_(size)
     {
-        // posix_memalign 分配对齐内存
-        if(posix_memalign((void**)&data_, kAlignment, size_) != 0)
+        bool try_huge = (size >= 64 * 1024);
+        
+        void* ptr = MAP_FAILED;
+        
+        if (try_huge) 
+            ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+        
+        
+        if(ptr != MAP_FAILED)
         {
-            throw std::runtime_error("Aligned alloc failed");
+            data_ = static_cast<uint8_t*>(ptr);
+            is_huge_ = true;
+            mlock(ptr, size);
+        }
+        else
+        {
+            if(posix_memalign((void**)&data_, kAlignment, size_) != 0)
+            {
+                throw std::runtime_error("Aligned alloc failed");
+            }
+            is_huge_ = false;
         }
     }
 
     ~AlignedBuffer()
     {
         if(data_)
-            free(data_);
+        {
+            if(is_huge_)
+                munmap(data_, size_);
+            else
+                free(data_);
+        }
     }
 
-    // AlignedBuffer(const AlignedBuffer&) = delete;
-    // AlignedBuffer& operator=(const AlignedBuffer&) = delete;
-
-    AlignedBuffer(AlignedBuffer&& other) noexcept: data_(other.data_), size_(other.size_)
+    //  移动构造
+    AlignedBuffer(AlignedBuffer&& other) noexcept
+    : data_(other.data_), size_(other.size_), is_huge_(other.is_huge_)
     {
         other.data_ = nullptr;
         other.size_ = 0;
     }
 
+    // 复制构造
+    AlignedBuffer(AlignedBuffer& other)
+    : data_(other.data_), size_(other.size_), is_huge_(other.is_huge_)
+    {
+        other.data_ = nullptr;
+        other.size_ = 0;
+        other.is_huge_ = false;
+    }
+
+    // 移动赋值
+    AlignedBuffer& operator=(AlignedBuffer&& other)
+    {
+        if (this == &other)
+            return *this;
+
+        if(data_)
+        {
+            if(is_huge_) munmap(data_, size_);
+            else free(data_);
+        }
+        data_ = other.data_;
+        size_ = other.size_;
+        is_huge_ = other.is_huge_;
+
+        other.data_ = nullptr;
+        other.size_ = 0;
+        other.is_huge_ = false;
+        return *this;
+    }
+
+    // 拷贝构造
     AlignedBuffer(const AlignedBuffer& other)
-    : size_(other.size_)
+    : size_(other.size_), is_huge_(false)
     {
         void* ptr = nullptr;
         if (posix_memalign(&ptr, kAlignment, size_) != 0)
@@ -51,6 +107,7 @@ public:
         std::memcpy(data_, other.data_, size_);
     }
 
+    // 拷贝赋值
     AlignedBuffer& operator=(const AlignedBuffer& other)
     {
         if (this == &other)
@@ -62,9 +119,15 @@ public:
 
         std::memcpy(new_data, other.data_, other.size_);
 
-        free(data_);
+        if(data_) 
+        {
+            if(is_huge_) munmap(data_, size_);
+            else free(data_);
+        }
+        
         data_ = static_cast<uint8_t*>(new_data);
         size_ = other.size_;
+        is_huge_ = false;
         return *this;
     }
 
@@ -78,25 +141,10 @@ public:
         return size_;
     }
 
-    AlignedBuffer& operator=(AlignedBuffer&& other) noexcept
-    {
-        if(this != &other)
-        {
-            if(data_)
-                free(data_);
-
-            data_ = other.data_;
-            size_ = other.size_;
-
-            other.data_ = nullptr;
-            other.size_ = 0;
-        }
-        return *this;
-    }
-
 private:
     uint8_t *data_ = nullptr;
     size_t size_;
+    bool is_huge_;
 };
 
 

@@ -27,7 +27,7 @@ using namespace titankv;
 // ==========================================
 // const int NUM_THREADS = std::thread::hardware_concurrency() > 2 ? std::thread::hardware_concurrency() - 2 : 1; 
 const int NUM_THREADS = 2;
-const int NUM_KEYS_PER_THREAD = 25000; // 每个线程写多少
+const int NUM_KEYS_PER_THREAD = 50000; // 每个线程写多少
 const int TOTAL_OPS = NUM_THREADS * NUM_KEYS_PER_THREAD;
 const int VALUE_SIZE = 4096;           // 4KB
 const std::string TITANKV_PATH = "./bench_titankv_data";
