@@ -9,10 +9,6 @@
 
 TITANKV_NAMESPACE_OPEN
 
-static constexpr uint64_t kEmpty = 0;
-// 全 1
-static constexpr uint64_t kTombstone = ~0ULL;
-
 struct IndexEntry 
 {
     // 0 代表槽位为空
@@ -57,15 +53,17 @@ public:
         size_t idx = hash & mask_;
         size_t first_tombstone = mask_ + 1; // 记录第一个遇到的墓碑
 
-        while (entries_[idx].key_hash != kEmpty) {
-            if (entries_[idx].key_hash == hash) {
+        while (entries_[idx].key_hash != kEmpty) 
+        {
+            if (entries_[idx].key_hash == hash) 
+            {
                 entries_[idx].offset = off;
                 entries_[idx].len = len;
                 return;
             }
-            if (entries_[idx].key_hash == kTombstone && first_tombstone > mask_) {
+            if (entries_[idx].key_hash == kTombstone && first_tombstone > mask_) 
                 first_tombstone = idx;
-            }
+            
             idx = (idx + 1) & mask_;
         }
 
@@ -108,6 +106,20 @@ public:
         return false;
     }
 
+    size_t capacity() const 
+    { 
+        return capacity_; 
+    }
+
+    // 获取特定位置的 Entry
+    IndexEntry& get_entry(size_t i) 
+    { 
+        return entries_[i]; 
+    }
+
+    static constexpr uint64_t kEmpty = 0;
+    // 全 1
+    static constexpr uint64_t kTombstone = ~0ULL;
 private:
     IndexEntry* entries_;
     size_t capacity_;

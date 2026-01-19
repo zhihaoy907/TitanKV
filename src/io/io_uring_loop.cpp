@@ -19,9 +19,29 @@ IoContext::IoContext(unsigned entries)
     // params.flags |= IORING_SETUP_IOPOLL;
 
     int ret = io_uring_queue_init_params(entries, &ring_, &params);
-    if(ret < 0) [[unlikely]]
-        throw std::runtime_error("io_uring init failed");
+    if(ret < 0) throw std::runtime_error("io_uring init failed");
 
+    // 分配统一的 Registered Arena
+    arena_size_ = 128 * 1024 * 1024; 
+    arena_ptr_ = mmap(nullptr, arena_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+    
+    if (arena_ptr_ == MAP_FAILED) 
+    {
+        // 如果大页失败，用普通对齐内存
+        if (posix_memalign(&arena_ptr_, 4096, arena_size_) != 0)
+            throw std::runtime_error("Arena allocation failed");
+    }
+
+    // 向内核注册这块内存
+    struct iovec iov;
+    iov.iov_base = arena_ptr_;
+    iov.iov_len = arena_size_;
+    
+    // 这里的 1 代表我们注册了一个大块。以后在 SQE 里传 index 0。
+    ret = io_uring_register_buffers(&ring_, &iov, 1);
+    if (ret < 0) throw std::runtime_error("io_uring_register_buffers failed");
+
+    // 初始化 request_pool_
     request_pool_.reserve(entries); 
 }
 
@@ -61,7 +81,7 @@ void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len
 }
 
 
-void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, WriteCompletionCallback cb) 
+void IoContext::SubmitWrite(int /* fd */, AlignedBuffer&& buf, off_t offset, WriteCompletionCallback cb) 
 {
     // 尝试获取 SQE
     struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
@@ -77,15 +97,11 @@ void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, WriteComp
     }
 
     auto* req = request_pool_.alloc();
-    req->iov = {};
-    req->offset = offset;
     req->write_cb = std::move(cb);
-    req->iov.iov_base = buf.data();
-    req->iov.iov_len = buf.size();
     req->held_buffer = std::move(buf);
-    assert(req->iov.iov_base != nullptr);
 
-    io_uring_prep_writev(sqe, fd, &req->iov, 1, offset);
+    io_uring_prep_write_fixed(sqe, 0, req->held_buffer.data(), req->held_buffer.size(), offset, 0);
+    sqe->flags |= IOSQE_FIXED_FILE;
     io_uring_sqe_set_data(sqe, req);
     
     // 还是需要提交
@@ -136,5 +152,18 @@ void IoContext::Drain()
     {
         io_uring_submit(&ring_);
         RunOnce();
+    }
+}
+
+void IoContext::RegisterFiles(const std::vector<int>& fds) 
+{
+    if (fds.empty()) return;
+
+    // io_uring_register_files 会将用户态 FD 数组同步到内核的固定表
+    int ret = io_uring_register_files(&ring_, fds.data(), fds.size());
+    if (ret < 0) 
+    {
+        fprintf(stderr, "io_uring_register_files failed: %s\n", strerror(-ret));
+        throw std::runtime_error("Fixed files registration failed");
     }
 }

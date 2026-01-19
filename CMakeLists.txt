@@ -6,6 +6,8 @@ project(TitanKV
     LANGUAGES CXX
 )
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -march=native")
+
 # ==========================================
 # 1. 基础配置 (Common Setup)
 # ==========================================

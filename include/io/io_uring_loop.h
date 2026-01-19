@@ -23,6 +23,30 @@ struct IoRequest
     {}
 };
 
+struct IoArena 
+{
+    void* ptr;
+    size_t size;
+    std::atomic<size_t> offset;
+
+    IoArena(size_t sz) : size(sz), offset(0) 
+    {
+        // 申请 HugePage
+        ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+        if (ptr == MAP_FAILED) throw std::runtime_error("Arena mmap failed");
+        
+        // 预热内存
+        memset(ptr, 0, size); 
+    }
+
+    void* alloc(size_t sz) 
+    {
+        size_t off = offset.fetch_add(sz);
+        if (off + sz > size) return nullptr;
+        return (char*)ptr + off;
+    }
+};
+
 class IoContext
 {
 public:
@@ -47,9 +71,13 @@ public:
 
     void Drain();
 
+    void RegisterFiles(const std::vector<int>& fds);
+
 private:
     struct io_uring ring_;
     ObjectPool<IoRequest> request_pool_; 
+    void* arena_ptr_ = nullptr;
+    size_t arena_size_ = 0;
 };
 
 TITANKV_NAMESPACE_CLOSE

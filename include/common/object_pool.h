@@ -111,6 +111,11 @@ public:
         return in_use_;
     }
 
+    void init_with_arena(void* ptr, size_t size) 
+    {
+        fixed_arena_cur_ = ptr;
+    }
+
 private:
 
     struct BlockInfo 
@@ -123,28 +128,39 @@ private:
     void expand() 
     {
         size_t block_bytes = chunk_size_ * item_size_;
-        
-        // 标记是否来自大页，以便析构时选择 munmap 还是 free
+        void* raw_mem = nullptr;
         bool allocated_as_huge = false;
-        void* raw_mem = mmap(nullptr, block_bytes, PROT_READ | PROT_WRITE,
-                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+        bool from_arena = false;
 
-        if (raw_mem == MAP_FAILED) 
+        // 如果设置了外部 Arena 指针，优先使用
+        if (fixed_arena_cur_) 
         {
-            // 大页分配失败，改用普通对齐分配
-            if (posix_memalign(&raw_mem, kCacheLineSize, block_bytes) != 0) 
-            {
-                throw std::bad_alloc();
-            }
-            allocated_as_huge = false;
+            raw_mem = fixed_arena_cur_;
+            // 移动 Arena 指针，为下次 expand 留位
+            fixed_arena_cur_ = (char*)fixed_arena_cur_ + block_bytes;
+            from_arena = true;
+            // 假设 Arena 总是大页
+            allocated_as_huge = true; 
         } 
         else 
         {
-            allocated_as_huge = true;
+            raw_mem = mmap(nullptr, block_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+
+            if (raw_mem == MAP_FAILED) {
+                if (posix_memalign(&raw_mem, kCacheLineSize, block_bytes) != 0) {
+                    throw std::bad_alloc();
+                }
+                allocated_as_huge = false;
+            } else {
+                allocated_as_huge = true;
+            }
         }
         
-        blocks_.push_back({raw_mem, block_bytes, allocated_as_huge});
+        // 如果内存来自 Arena，不要存入 blocks_，避免析构时重复 munmap
+        if (!from_arena) 
+            blocks_.push_back({raw_mem, block_bytes, allocated_as_huge});
         
+        // 链表切分
         for (size_t i = 0; i < chunk_size_; ++i) 
         {
             FreeNode* current = reinterpret_cast<FreeNode*>((char*)raw_mem + i * item_size_);
@@ -153,11 +169,13 @@ private:
         }
         object_num_ += chunk_size_;
     }
+
     FreeNode* free_head_;
     std::vector<BlockInfo> blocks_;
     size_t chunk_size_;
     unsigned object_num_;
     unsigned in_use_;
+    void* fixed_arena_cur_ = nullptr;
 
     inline void* allocate_huge_pages(size_t size) 
     {

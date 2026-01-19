@@ -12,7 +12,7 @@
 #include "io/io_uring_loop.h"
 #include "io/raw_device.h"
 #include "common/buffer.h"
-
+#include "common/flat_index.h"
 
 #ifdef TITAN_USE_MPSC
 #ifdef BLOCK_SIZE
@@ -82,8 +82,8 @@ private:
     // 资源隔离：每个 Worker 独享一个 io_uring
     IoContext ctx_;
     // 一定不要使用string_view!!!!!!!!!
-    std::unordered_map<std::string, KeyLocation> index_;
-
+    // std::unordered_map<std::string, KeyLocation> index_;
+    FlatIndex index_; 
 };
 
 TITANKV_NAMESPACE_CLOSE

@@ -38,6 +38,12 @@ struct WriteRequest
     {}
 
     WriteRequest() = default;
+
+    WriteRequest(WriteRequest&&) = default;
+    WriteRequest& operator=(WriteRequest&&) = default;
+
+    WriteRequest(const WriteRequest&) = delete;
+    WriteRequest& operator=(const WriteRequest&) = delete;
 };
 
 struct ReadRequest 
