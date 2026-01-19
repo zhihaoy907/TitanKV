@@ -33,11 +33,16 @@ public:
 
     ~ObjectPool() 
     {
-        assert(in_use_ == 0 && "ObjectPool destroyed with live objects");
-
-        for (void* block : blocks_)
+        for (auto& block : blocks_) 
         {
-            ::free(block);
+            if (block.is_huge) 
+            {
+                ::munmap(block.ptr, block.size);
+            } 
+            else 
+            {
+                ::free(block.ptr);
+            }
         }
     }
 
@@ -108,51 +113,59 @@ public:
 
 private:
 
+    struct BlockInfo 
+    {
+        void* ptr;
+        size_t size;
+        bool is_huge;
+    };
+
     void expand() 
     {
-        // 计算一次需要申请的总字节数
         size_t block_bytes = chunk_size_ * item_size_;
         
-        void* raw_mem = nullptr;
-        // 使用 64 字节对齐，不仅为了 cache line，也是为了后续 O_DIRECT 的对齐要求
-        if (posix_memalign(&raw_mem, 64, block_bytes) != 0) [[unlikely]]
+        // 标记是否来自大页，以便析构时选择 munmap 还是 free
+        bool allocated_as_huge = false;
+        void* raw_mem = mmap(nullptr, block_bytes, PROT_READ | PROT_WRITE,
+                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+
+        if (raw_mem == MAP_FAILED) 
         {
-            throw std::bad_alloc();
-        }
-
-        blocks_.push_back(raw_mem);
-        
-        char* cursor = reinterpret_cast<char*>(raw_mem);
-        
-        for (size_t i = 0; i < chunk_size_ - 1; ++i) 
+            // 大页分配失败，改用普通对齐分配
+            if (posix_memalign(&raw_mem, kCacheLineSize, block_bytes) != 0) 
+            {
+                throw std::bad_alloc();
+            }
+            allocated_as_huge = false;
+        } 
+        else 
         {
-            FreeNode* current = reinterpret_cast<FreeNode*>(cursor);
-
-            char* next_addr = cursor + item_size_;
-
-            current->next = reinterpret_cast<FreeNode*>(next_addr);
-
-            cursor = next_addr;
+            allocated_as_huge = true;
         }
-
-        FreeNode* tail = reinterpret_cast<FreeNode*>(cursor);
-        // 链表插入，而不是新建链表
-        tail->next = free_head_;
-        free_head_ = reinterpret_cast<FreeNode*>(raw_mem);
-
+        
+        blocks_.push_back({raw_mem, block_bytes, allocated_as_huge});
+        
+        for (size_t i = 0; i < chunk_size_; ++i) 
+        {
+            FreeNode* current = reinterpret_cast<FreeNode*>((char*)raw_mem + i * item_size_);
+            current->next = free_head_;
+            free_head_ = current;
+        }
         object_num_ += chunk_size_;
     }
-
-    // 自由链表头指针
-    FreeNode* free_head_ = nullptr;
-    // 记录所有申请过的大块内存，方便最后 free
-    std::vector<void*> blocks_;
-    // 每次扩容的个数
+    FreeNode* free_head_;
+    std::vector<BlockInfo> blocks_;
     size_t chunk_size_;
-    // 对象池中的对象个数
     unsigned object_num_;
-    // 已使用的对象个数
     unsigned in_use_;
+
+    inline void* allocate_huge_pages(size_t size) 
+    {
+        void* ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+        if (ptr == MAP_FAILED) return nullptr;
+        return ptr;
+    }
 };
 
 TITANKV_NAMESPACE_CLOSE

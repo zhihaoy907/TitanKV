@@ -20,7 +20,7 @@ struct IoRequest
     AlignedBuffer held_buffer;
 
     IoRequest() : held_buffer() 
-    {} 
+    {}
 };
 
 class IoContext
