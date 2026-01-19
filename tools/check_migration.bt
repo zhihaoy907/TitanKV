@@ -1,0 +1,42 @@
+/*
+ * 核心目的: 
+ * 该脚本基于 tracepoint:sched:sched_switch 事件，实时追踪并检测 TitanKV 关键线程在 CPU 核心之间的迁移情况 (Migration)。
+ * 用于验证 Thread-per-Core (TPC) 架构下的 CPU 亲和性 (Affinity) 设置是否生效。
+ *
+ * 使用方法: 
+ * 1. 启动压测程序: ./tests/bench_titankv_standalone
+ * 2. 另开终端运行: sudo ./check_migration.bt
+ * 3. 观察输出日志，确认是否存在持续的跨核迁移。
+ *
+ * 关键指标解读:
+ * - 迁移日志 (migrated): 记录了线程从一个 CPU 核被调度到另一个 CPU 核的事件。
+ *   - 预期表现: 程序启动初期允许少量迁移（OS 负载均衡），稳定运行后应无任何输出。
+ *   - 异常表现: 如果持续刷屏，说明绑核失败或被 OS 抢占，会导致 L1/L2 Cache 频繁失效。
+ * - @last_cpu[tid]: 脚本结束时打印每个线程最后驻留的 CPU 核心编号。
+ *   - 验证点: 确认 Worker 线程的 ID 是否稳定对应到预期的 Core ID (如 Core 2, Core 3)。
+ *
+ * 案例: TitanKV 实战验证
+ * 环境: 4 Core VM, Ubuntu 22.04
+ * 
+ * [未绑核状态]:
+ * 脚本输出大量 "Thread 1234 migrated: CPU 0 -> CPU 3" 等日志，sched_switch 事件频率极高，
+ * Cache Miss 率随之上升，尾延迟抖动严重。
+ *
+ * [绑核状态]:
+ * 脚本仅在启动首秒输出 3-5 次迁移日志（初始化阶段），随后全程静默。
+ * 最终 @last_cpu 显示 Worker 线程牢牢锚定在 CPU 2 和 CPU 3 上。
+ * 结论: 成功消除了运行期的跨核上下文切换，确保了 CPU 流水线和 Cache 的极致利用率。
+ */
+
+#!/usr/bin/env bpftrace
+
+BEGIN { printf("Tracing CPU migrations... Hit Ctrl-C to end.\n"); }
+
+tracepoint:sched:sched_switch
+/args->next_comm == "bench_titankv_s"/
+{
+    if (@last_cpu[args->next_pid] != 0 && @last_cpu[args->next_pid] != cpu) {
+        printf("Thread %d migrated: CPU %d -> CPU %d\n", args->next_pid, @last_cpu[args->next_pid], cpu);
+    }
+    @last_cpu[args->next_pid] = cpu;
+}

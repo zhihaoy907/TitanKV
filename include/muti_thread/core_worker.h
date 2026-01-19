@@ -60,6 +60,7 @@ private:
     void run();
     std::string ExtractValue(const AlignedBuffer& buf, uint32_t len);
 
+    alignas(64)
 #ifdef TITAN_USE_MPSC
     // MPSC 架构
     moodycamel::ConcurrentQueue<ReadRequest> read_queue_;
@@ -69,6 +70,8 @@ private:
     std::unique_ptr<rigtorp::SPSCQueue<ReadRequest>> read_queue_;
     std::unique_ptr<rigtorp::SPSCQueue<WriteRequest>> write_queue_;
 #endif
+
+    alignas(64)
     std::unique_ptr<RawDevice> device_;
     std::atomic<bool> stop_;
     std::thread thread_;
