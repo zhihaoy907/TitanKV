@@ -18,7 +18,7 @@ static unsigned default_thread_num = std::thread::hardware_concurrency();
 struct WriteRequest 
 {
     AlignedBuffer buf;
-    std::string key;
+    std::string_view key;
     off_t offset;
     LogOp type;
     std::function<void(int)> callback;
@@ -28,32 +28,31 @@ struct WriteRequest
     :buf(std::move(b)), offset(o), callback(std::move(cb))
     {}
 
-    // 委托构造函数，委托下面的构造函数来初始化
-    WriteRequest(AlignedBuffer&& b, std::string k, off_t o, std::function<void(int)> cb)
-    :WriteRequest(std::move(b), std::move(k), o, LogOp::PUT, std::move(cb))
-    {}
-
-    WriteRequest(AlignedBuffer&& b, std::string k, off_t o, LogOp op, std::function<void(int)> cb)
-    :buf(std::move(b)), key(std::move(k)), offset(o), type(op), callback(std::move(cb))
-    {}
-
-    WriteRequest() = default;
+    WriteRequest(AlignedBuffer&& b, off_t o, LogOp op, std::function<void(int)> cb)
+    : buf(std::move(b)), offset(o), type(op), callback(std::move(cb))
+    {
+        // 从已经序列化好的 buf 中通过指针计算还原出 Key 的视图
+        const char* raw_ptr = reinterpret_cast<const char*>(buf.data());
+        auto* header = reinterpret_cast<const LogHeader*>(raw_ptr);
+        
+        key = std::string_view(raw_ptr + sizeof(LogHeader), header->key_len);
+    }
 
     WriteRequest(WriteRequest&&) = default;
-    WriteRequest& operator=(WriteRequest&&) = default;
-
     WriteRequest(const WriteRequest&) = delete;
-    WriteRequest& operator=(const WriteRequest&) = delete;
 };
 
 struct ReadRequest 
 {
-    std::string key;
+    std::string_view key;
     std::function<void(std::string)> callback; 
 
-    ReadRequest(std::string &k, std::function<void(std::string)> cb)
+    ReadRequest(std::string_view &k, std::function<void(std::string)> cb)
     : key(k), callback(cb)
     {}
+
+    ReadRequest(ReadRequest&&) = default;
+    ReadRequest(const ReadRequest&) = delete;
 };
 
 
