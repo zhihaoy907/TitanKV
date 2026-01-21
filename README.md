@@ -31,8 +31,10 @@
 
 2、**新增批内核大页机制**：在批处理的基础上新增内核大页分配。通过合理的内存管理，增加约 **17%吞吐量** ，减少约**14.7%时间开销** ，详情见docs/huge_page.md。
 
-3、**新增固定文件注册机制**：在批处理的基础上新增固定文件注册极致。通过perf工具、分析内核源码，引入io_uring的fix_files机制增加约**30.9%吞吐量**，减少约**23.7%时间开销**，详情见docs/fixed_files.md。
+3、**新增固定文件注册机制**：在批处理的基础上新增固定文件注册新增。通过perf工具、分析内核源码，引入io_uring的fix_files机制增加约**30.9%吞吐量**，减少约**23.7%时间开销**，详情见docs/fixed_files.md。
 
+4、**新增扁平索引与注册内存直通机制**：基于对 perf 报告中 libstdc++ (unordered_map) 指针跳转和 asm_exc_page_fault 缺页异常的深度分析，引入了 FlatIndex (开放寻址线性探测哈希表) 与 Registered Buffers (注册缓冲区) 机制。配合 SSE4.2 硬件加速哈希（CRC32）与 Registered Arena 内存模型，实现了热路径上的 Zero-Allocation 与 Zero-Mapping。
+单机写入性能突破 21.1w IOPS，将内核调用开销压缩至 2% 以内。perf 采样显示核心业务逻辑占比飙升至 27.25%，系统瓶颈穿透用户态，下沉至内核磁盘驱动层。详情见 docs/zero_allocation.md。
 
 ## 后续目标
 
