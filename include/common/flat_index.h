@@ -23,7 +23,7 @@ class FlatIndex
 {
 public:
     // capacity 必须是 2 的幂次，方便用 & 代替 % 取模
-    explicit FlatIndex(size_t capacity = 1 << 20) : capacity_(capacity) 
+    explicit FlatIndex(size_t capacity = 1 << 22) : capacity_(capacity) 
     {
         if ((capacity & (capacity - 1)) != 0) 
             throw std::runtime_error("Capacity must be power of 2");

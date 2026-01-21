@@ -16,6 +16,12 @@
 
 TITANKV_NAMESPACE_OPEN
 
+struct IoCallback 
+{
+    void (*fn)(int res, void* ctx);
+    void* ctx;
+};
+
 // 默认cache line字节数
 constexpr unsigned CACHE_LINE_SIZE = 64;
 // 批量处理的cq数量

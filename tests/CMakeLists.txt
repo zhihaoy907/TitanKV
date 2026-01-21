@@ -74,3 +74,6 @@ target_compile_options(bench_rocksdb_standalone PRIVATE -g -O0 -fno-omit-frame-p
 add_executable(bench_titankv_standalone bench_titankv_standalone.cpp)
 target_link_libraries(bench_titankv_standalone PRIVATE titankv_core)
 target_compile_options(bench_titankv_standalone PRIVATE -g -O0 -fno-omit-frame-pointer)
+add_executable(bench_titankv_standalone_v2 bench_titankv_standalone_v2.cpp)
+target_link_libraries(bench_titankv_standalone_v2 PRIVATE titankv_core)
+target_compile_options(bench_titankv_standalone_v2 PRIVATE -g -O0 -fno-omit-frame-pointer)

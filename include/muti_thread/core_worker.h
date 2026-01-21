@@ -56,10 +56,11 @@ public:
 
     void recover();
 
-private:
-    void run();
     std::string ExtractValue(const AlignedBuffer& buf, uint32_t len);
 
+private:
+    void run();
+    
     alignas(64)
 #ifdef TITAN_USE_MPSC
     // MPSC 架构
@@ -84,6 +85,7 @@ private:
     // 一定不要使用string_view!!!!!!!!!
     // std::unordered_map<std::string, KeyLocation> index_;
     FlatIndex index_; 
+    AlignedBuffer group_commit_buffer_; 
 };
 
 TITANKV_NAMESPACE_CLOSE

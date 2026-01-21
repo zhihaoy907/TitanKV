@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "io/io_uring_loop.h"
+#include "muti_thread/core_worker.h"
 
 using namespace titankv;
 
@@ -21,27 +22,17 @@ IoContext::IoContext(unsigned entries)
     int ret = io_uring_queue_init_params(entries, &ring_, &params);
     if(ret < 0) throw std::runtime_error("io_uring init failed");
 
-    // 分配统一的 Registered Arena
     arena_size_ = 128 * 1024 * 1024; 
-    arena_ptr_ = mmap(nullptr, arena_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
-    
-    if (arena_ptr_ == MAP_FAILED) 
-    {
-        // 如果大页失败，用普通对齐内存
-        if (posix_memalign(&arena_ptr_, 4096, arena_size_) != 0)
-            throw std::runtime_error("Arena allocation failed");
-    }
+    arena_ = std::make_unique<IoArena>(arena_size_);
 
-    // 向内核注册这块内存
+    // 注册
     struct iovec iov;
-    iov.iov_base = arena_ptr_;
-    iov.iov_len = arena_size_;
+    iov.iov_base = arena_->ptr;
+    iov.iov_len = arena_->size;
     
-    // 这里的 1 代表我们注册了一个大块。以后在 SQE 里传 index 0。
-    ret = io_uring_register_buffers(&ring_, &iov, 1);
-    if (ret < 0) throw std::runtime_error("io_uring_register_buffers failed");
+    if (io_uring_register_buffers(&ring_, &iov, 1) < 0) 
+        throw std::runtime_error("io_uring_register_buffers failed");
 
-    // 初始化 request_pool_
     request_pool_.reserve(entries); 
 }
 
@@ -50,97 +41,86 @@ IoContext::~IoContext()
     io_uring_queue_exit(&ring_);
 }
 
-void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len, ReadCompletionCallback cb)
+void IoContext::SubmitRead(int fd, AlignedBuffer&& buf, off_t offset, size_t len, void* worker, std::function<void(std::string)> cb)
 {
-    // 尝试获取 SQE
     struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
-    
-    // 忙等待处理：如果队列满了 (返回 nullptr)
-    while (!sqe) 
-    {
-        // 尝试释放 sq
-        RunOnce();
-        
-        // 再次尝试获取
-        sqe = io_uring_get_sqe(&ring_);
-    }
+    while (!sqe) { RunOnce(); sqe = io_uring_get_sqe(&ring_); }
 
     auto* req = request_pool_.alloc();
-    req->held_buffer = std::move(buf);
-    req->iov.iov_base = req->held_buffer.data();
-    req->iov.iov_len  = len;
-    assert(req->iov.iov_base != nullptr);
-
+    req->reset();
     req->offset = offset;
+    req->worker_ptr = worker;
+    req->read_len = (uint32_t)len;
     req->read_cb = std::move(cb);
+    req->held_buffer = std::move(buf);
 
-    io_uring_prep_readv(sqe, fd, &req->iov, 1, offset);
+    io_uring_prep_read(sqe, fd, req->held_buffer.data(), len, offset);
     io_uring_sqe_set_data(sqe, req);
-    
-    io_uring_submit(&ring_);
 }
 
-
-void IoContext::SubmitWrite(int /* fd */, AlignedBuffer&& buf, off_t offset, WriteCompletionCallback cb) 
+void IoContext::SubmitWrite(int /*fd*/, const void* data, size_t len, off_t offset, std::vector<WriteRequest>& batch) 
 {
-    // 尝试获取 SQE
-    struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
-    
-    // 忙等待处理：如果队列满了 (返回 nullptr)
-    while (!sqe) 
-    {
-        // 尝试释放 sq
-        RunOnce();
-        
-        // 再次尝试获取
-        sqe = io_uring_get_sqe(&ring_);
-    }
-
     auto* req = request_pool_.alloc();
-    req->write_cb = std::move(cb);
-    req->held_buffer = std::move(buf);
+    req->reset();
+    
+    auto callbacks = std::make_shared<std::vector<std::function<void(int)>>>();
+    callbacks->reserve(batch.size());
+    for (auto& r : batch) callbacks->push_back(std::move(r.callback));
+    req->write_cbs_vec = std::move(callbacks);
 
-    io_uring_prep_write_fixed(sqe, 0, req->held_buffer.data(), req->held_buffer.size(), offset, 0);
+    struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
+    while (!sqe) { RunOnce(); sqe = io_uring_get_sqe(&ring_); }
+
+    io_uring_prep_write_fixed(sqe, 0, data, len, offset, 0); 
     sqe->flags |= IOSQE_FIXED_FILE;
     io_uring_sqe_set_data(sqe, req);
+}
+
+// 兼容性接口
+void IoContext::SubmitWrite(int fd, AlignedBuffer&& buf, off_t offset, std::function<void(int)> cb) 
+{
+    auto* req = request_pool_.alloc();
+    req->reset();
+    req->held_buffer = std::move(buf);
     
-    // 还是需要提交
+    auto v = std::make_shared<std::vector<std::function<void(int)>>>();
+    v->push_back(std::move(cb));
+    req->write_cbs_vec = std::move(v);
+
+    struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
+    while (!sqe) { RunOnce(); sqe = io_uring_get_sqe(&ring_); }
+
+    io_uring_prep_write(sqe, fd, req->held_buffer.data(), req->held_buffer.size(), offset);
+    io_uring_sqe_set_data(sqe, req);
     io_uring_submit(&ring_);
 }
 
-// 批处理
 void IoContext::RunOnce()
 {
     io_uring_cqe* cqes[URING_CQ_BATCH];
-
     unsigned count = io_uring_peek_batch_cqe(&ring_, cqes, URING_CQ_BATCH);
 
     for(unsigned i = 0; i < count; ++i)
     {
-        io_uring_cqe* rqe = cqes[i];
+        auto* req = static_cast<IoRequest*>(io_uring_cqe_get_data(cqes[i]));
+        int res = cqes[i]->res;
 
-        auto* req = static_cast<IoRequest*>(io_uring_cqe_get_data(rqe));
-
-        if(req) 
+        if (req->read_cb) 
         {
-            if (req->read_cb) 
-            {
-                req->read_cb(rqe->res, req->held_buffer);
-            } 
-            else if (req->write_cb) 
-            {
-                req->write_cb(rqe->res);
-            }
+            auto* worker = static_cast<CoreWorker*>(req->worker_ptr);
+            req->read_cb(worker->ExtractValue(req->held_buffer, req->read_len));
+        } 
+        else if (req->write_cbs_vec) 
+        {
+            for (auto& cb : *req->write_cbs_vec) if (cb) cb(res);
         }
 
+        req->reset();
         request_pool_.free(req);
     }
-
-    if(count > 0)
-        io_uring_cq_advance(&ring_, count);
+    if(count > 0) io_uring_cq_advance(&ring_, count);
 }
 
-// 手动触发系统调用
 void IoContext::Submit() 
 {
     io_uring_submit(&ring_);
@@ -159,11 +139,15 @@ void IoContext::RegisterFiles(const std::vector<int>& fds)
 {
     if (fds.empty()) return;
 
-    // io_uring_register_files 会将用户态 FD 数组同步到内核的固定表
     int ret = io_uring_register_files(&ring_, fds.data(), fds.size());
     if (ret < 0) 
     {
         fprintf(stderr, "io_uring_register_files failed: %s\n", strerror(-ret));
         throw std::runtime_error("Fixed files registration failed");
     }
+}
+
+void* IoContext::AllocateFromArena(size_t size) 
+{
+    return arena_->alloc(size);
 }

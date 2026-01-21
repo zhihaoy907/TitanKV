@@ -19,7 +19,12 @@ public:
     
     static constexpr size_t kAlignment = 4096;
 
-    AlignedBuffer(size_t size = kAlignment) : size_(size), is_huge_(false)
+    AlignedBuffer(void* external_ptr, size_t size) 
+    : data_(static_cast<uint8_t*>(external_ptr)), size_(size), is_huge_(false), is_owning_(false)
+    {}
+
+    AlignedBuffer(size_t size = kAlignment) 
+    : size_(size), is_huge_(false), is_owning_(true)
     {
         // 只有当申请的大小超过 1MB 时，才考虑使用大页
         if (size >= 1024 * 1024) 
@@ -43,7 +48,7 @@ public:
 
     ~AlignedBuffer()
     {
-        if(data_)
+        if(data_ && is_owning_)
         {
             if(is_huge_)
                 munmap(data_, size_);
@@ -57,31 +62,35 @@ public:
 
     //  移动构造
     AlignedBuffer(AlignedBuffer&& other) noexcept
-    : data_(other.data_), size_(other.size_), is_huge_(other.is_huge_)
+    : data_(other.data_), size_(other.size_), is_huge_(other.is_huge_), is_owning_(other.is_owning_)
     {
         other.data_ = nullptr;
         other.size_ = 0;
         other.is_huge_ = false;
+        other.is_owning_ = false;
     }
 
     // 移动赋值
-    AlignedBuffer& operator=(AlignedBuffer&& other)
+    AlignedBuffer& operator=(AlignedBuffer&& other) noexcept 
     {
-        if (this == &other)
-            return *this;
-
-        if(data_)
+        if (this != &other)
         {
-            if(is_huge_) munmap(data_, size_);
-            else free(data_);
-        }
-        data_ = other.data_;
-        size_ = other.size_;
-        is_huge_ = other.is_huge_;
+            if(data_ && is_owning_)
+            {
+                if(is_huge_) munmap(data_, size_);
+                else free(data_);
+            }
 
-        other.data_ = nullptr;
-        other.size_ = 0;
-        other.is_huge_ = false;
+            data_ = other.data_;
+            size_ = other.size_;
+            is_huge_ = other.is_huge_;
+            is_owning_ = other.is_owning_; 
+
+            other.data_ = nullptr;
+            other.size_ = 0;
+            other.is_huge_ = false;
+            other.is_owning_ = false;
+        }
         return *this;
     }
     
@@ -99,6 +108,7 @@ private:
     uint8_t *data_ = nullptr;
     size_t size_;
     bool is_huge_;
+    bool is_owning_;
 };
 
 

@@ -36,15 +36,20 @@ inline uint64_t FastHash(std::string_view key)
 }
 
 CoreWorker::CoreWorker(unsigned core_id, const std::string& file_path)
-: stop_(false), core_id_(core_id), ctx_(4096), index_(1 << 17)
+: stop_(false), core_id_(core_id), ctx_(4096), index_(1 << 22)
 {    
     filename_ = file_path + "/data_" + std::to_string(core_id) + ".log";
     device_ = std::make_unique<RawDevice>(filename_);
     fd_ = device_->fd();
     current_offset_ = 0;
     std::vector<int> fds = { fd_ };
+
+    void* slice = ctx_.AllocateFromArena(8 * 1024 * 1024);
     
-    ctx_.RegisterFiles(fds);
+    // 初始化持久缓冲区
+    group_commit_buffer_ = AlignedBuffer(slice, 8 * 1024 * 1024);
+    
+    ctx_.RegisterFiles(fds);    
 
 // SPSC架构下的初始化，MPSC会按需分配
 #ifndef TITAN_USE_MPSC
@@ -256,45 +261,31 @@ void CoreWorker::run()
         // -------------------------------------------------------
         if(write_count > 0)
         {
-            size_t raw_size = 0;
-            for(const auto& req : write_batch)
-                raw_size += req.buf.size();
-
-            size_t aligned_size = (raw_size + 4095) & ~4095;
-            AlignedBuffer group_buf(aligned_size);
-
-            size_t current_offset_in_group = 0;
-
-            auto callbacks = std::make_shared<std::vector<std::function<void(int)>>>();
-            callbacks->reserve(write_batch.size());
             off_t write_pos_start = current_offset_;
+            size_t current_offset_in_group = 0;
             
             for(auto& req : write_batch)
             {
-                memcpy(group_buf.data() + current_offset_in_group, req.buf.data(), req.buf.size());
-                uint64_t h = FastHash(req.key); 
-                // 更新内存索引
-                if (req.type == LogOp::PUT)
-                {
-                    index_.put(h, (uint64_t)(write_pos_start + current_offset_in_group), (uint32_t)req.buf.size());
-                }
-                else if(req.type == LogOp::DELETE)
-                {
-                    index_.put(h, 0, 0);
-                }
-
-                if(req.callback)
-                    callbacks->push_back(std::move(req.callback));
+                // 1. 纯内存拷贝到已注册的固定缓冲区
+                memcpy((uint8_t*)group_commit_buffer_.data() + current_offset_in_group, 
+                       req.buf.data(), req.buf.size());
                 
+                // 2. 更新索引
+                uint64_t h = FastHash(req.key); 
+                if (req.type == LogOp::PUT)
+                    index_.put(h, (uint64_t)(write_pos_start + current_offset_in_group), (uint32_t)req.buf.size());
+                else if(req.type == LogOp::DELETE)
+                    index_.put(h, 0, 0);
+
+                // 【已删除】不再需要在这里 push_back callbacks
                 current_offset_in_group += req.buf.size();
             }
+
+            size_t aligned_size = (current_offset_in_group + 4095) & ~4095;
             current_offset_ += aligned_size;
-            ctx_.SubmitWrite(device_->fd(), 
-                            std::move(group_buf),  
-                            write_pos_start, 
-                            [cb_list = callbacks](int res) {
-                                for (auto& cb : *cb_list) cb(res);
-                            });
+
+            // 3. 提交 IO：传指针，传 batch 引用
+            ctx_.SubmitWrite(fd_, group_commit_buffer_.data(), aligned_size, write_pos_start, write_batch);
 
             write_batch.clear();
         }
@@ -338,15 +329,7 @@ void CoreWorker::run()
                     AlignedBuffer buf(aligned_len);
                     auto user_cb = std::move(req.callback);
 
-                    ctx_.SubmitRead(device_->fd(),
-                                    std::move(buf),
-                                    offset,
-                                    aligned_len,
-                                    [this, user_cb, len](int res, AlignedBuffer& data_buf) 
-                                    {
-                                        if (res < 0) user_cb("");
-                                        else user_cb(std::move(ExtractValue(data_buf, len))); // 反序列化
-                                    });
+                    ctx_.SubmitRead(fd_, std::move(buf), offset, len, this, std::move(req.callback));;
                 }
                 else [[unlikely]]
                 {
