@@ -30,4 +30,13 @@ CPU 仍有 1/4 的时间都在用户态和内核态之间切换，并且__mprote
 <img width="2820" height="473" alt="image" src="https://github.com/user-attachments/assets/b6c7ee97-ec0d-41c7-beb4-6ce879d0d456" />
 <img width="2816" height="873" alt="image" src="https://github.com/user-attachments/assets/9f78800b-fbe1-4c04-a485-794955eb577a" />
 
-纯纯的负优化，我不理解
+该优化在**IO性能受限**的机器上收效甚微，但是在更高性能的机器上TitanKV已基本将IO压榨到了极限，参考：
+<img width="2020" height="549" alt="image" src="https://github.com/user-attachments/assets/00654e8f-4e38-4c55-ad3b-98d553c71c1d" />
+
+<img width="2301" height="1165" alt="image" src="https://github.com/user-attachments/assets/811374cb-6f10-4dbe-a062-a7478a93c4c0" />
+
+**核心指标**
+1、业务逻辑：**run函数占比27.25%**，CPU 超过 1/4 的时间都在实打实地运行业务代码（搬运数据、哈希、处理批次）
+2、系统调用：**do_syscall_64占比仅2.25%，libstdc++损耗几乎没有，sysmalloc / __mprotect：降到了 0.82% 和 0.41%**，现在几乎没有内核态跟用户态的上下文切换
+3、磁盘驱动：**mpt_put_msg_frame合计约14.5%**。数据流已经基本塞满了IO总线，物理硬件成为性能瓶颈
+4、内存抖动：**clear_page_erms、__mprotect合计小于1.5%**，已经 实现了真正的“零缺页中断”。IO 路径上的内存页已被预先 Pin 住并映射，彻底消灭了动态申请带来的内核态抖动
