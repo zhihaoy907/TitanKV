@@ -19,11 +19,15 @@ public:
     
     static constexpr size_t kAlignment = 4096;
 
+    AlignedBuffer() 
+    : data_(nullptr), size_(0), is_huge_(false), is_owning_(false) 
+    {}
+
     AlignedBuffer(void* external_ptr, size_t size) 
     : data_(static_cast<uint8_t*>(external_ptr)), size_(size), is_huge_(false), is_owning_(false)
     {}
 
-    AlignedBuffer(size_t size = kAlignment) 
+    AlignedBuffer(size_t size) 
     : size_(size), is_huge_(false), is_owning_(true)
     {
         // 只有当申请的大小超过 1MB 时，才考虑使用大页

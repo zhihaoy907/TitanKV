@@ -19,6 +19,7 @@ struct WriteRequest
 {
     AlignedBuffer buf;
     std::string_view key;
+    std::string_view val;
     off_t offset;
     LogOp type;
     std::function<void(int)> callback;
@@ -37,6 +38,9 @@ struct WriteRequest
         
         key = std::string_view(raw_ptr + sizeof(LogHeader), header->key_len);
     }
+
+    WriteRequest(std::string_view k, std::string_view v, LogOp op, std::function<void(int)> cb)
+    : key(k), val(v), type(op), callback(std::move(cb)) {}
 
     WriteRequest(WriteRequest&&) = default;
     WriteRequest(const WriteRequest&) = delete;

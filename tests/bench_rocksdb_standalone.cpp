@@ -18,7 +18,7 @@
 // 统一配置参数
 // ==========================================
 const int NUM_THREADS = 2; // 客户端并发数
-const int NUM_KEYS_PER_THREAD = 25000;// 每个线程写多少
+const int NUM_KEYS_PER_THREAD = 100000;// 每个线程写多少
 const int TOTAL_OPS = NUM_THREADS * NUM_KEYS_PER_THREAD;
 const int VALUE_SIZE = 4096;          // 4KB
 const std::string ROCKSDB_PATH = "./bench_rocksdb_data";
@@ -53,7 +53,7 @@ void bench_rocksdb()
     rocksdb::DB* db;
     rocksdb::Options options;
     rocksdb::WriteOptions wo;
-    wo.sync = true; 
+    wo.sync = false; 
 
     options.create_if_missing = true;
     options.write_buffer_size = 64 * 1024 * 1024; 

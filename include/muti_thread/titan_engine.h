@@ -58,8 +58,7 @@ public:
 
     void Put(std::string_view key, std::string_view val, std::function<void(int)> on_complete)
     {
-        AlignedBuffer buffer = Serialize(key, val, LogOp::PUT); 
-        WriteRequest req(std::move(buffer), 0, LogOp::PUT, std::move(on_complete));
+        WriteRequest req(key, val, LogOp::PUT, std::move(on_complete));
 
         size_t idx = std::hash<std::string_view>{}(key) % workers_.size();
         workers_[idx]->submit(std::move(req));
@@ -73,8 +72,7 @@ public:
 
     void Delete(std::string_view key, std::function<void(int)> on_complete) 
     {
-        auto buffer = Serialize(key, "", LogOp::DELETE);
-        WriteRequest req(std::move(buffer), 0, LogOp::DELETE, std::move(on_complete));
+        WriteRequest req(key, "", LogOp::DELETE, std::move(on_complete));
         
         size_t idx = std::hash<std::string_view>{}(key) % workers_.size();
         workers_[idx]->submit(std::move(req));

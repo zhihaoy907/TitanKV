@@ -1,5 +1,7 @@
 #include "io/raw_device.h"
 
+#include <fcntl.h>
+
 using namespace titankv;
 
 RawDevice::RawDevice(const std::string& path)
@@ -9,11 +11,14 @@ RawDevice::RawDevice(const std::string& path)
     int flag = O_RDWR | O_CREAT | O_DIRECT;
 
     fd_ = ::open(path.c_str(), flag, 0644);
+    
     if(fd_ < 0)
     {
         perror("Open failed");
         throw std::runtime_error("Failed to open file with O_DIRECT");
     }
+
+    fallocate(fd_, 0, 0, 1024 * 1024 * 1024);
 }
 
 RawDevice::~RawDevice()

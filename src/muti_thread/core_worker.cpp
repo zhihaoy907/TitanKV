@@ -76,7 +76,7 @@ void CoreWorker::start()
         if(rc != 0)
             std::cerr << "Error calling pthread_setaffinity_np: " << rc << std::endl;
         
-        this->recover();
+        // this->recover();
 
         this->run();
 
@@ -266,25 +266,40 @@ void CoreWorker::run()
             
             for(auto& req : write_batch)
             {
-                // 1. 纯内存拷贝到已注册的固定缓冲区
-                memcpy((uint8_t*)group_commit_buffer_.data() + current_offset_in_group, 
-                       req.buf.data(), req.buf.size());
-                
-                // 2. 更新索引
-                uint64_t h = FastHash(req.key); 
-                if (req.type == LogOp::PUT)
-                    index_.put(h, (uint64_t)(write_pos_start + current_offset_in_group), (uint32_t)req.buf.size());
-                else if(req.type == LogOp::DELETE)
-                    index_.put(h, 0, 0);
+                // 直接在“已注册内存”上进行序列化填充
+                uint8_t* target = (uint8_t*)group_commit_buffer_.data() + current_offset_in_group;
+                size_t entry_size = 0; // 记录这一条记录的真实长度
 
-                // 【已删除】不再需要在这里 push_back callbacks
-                current_offset_in_group += req.buf.size();
+                // 如果是通过 string_view 传进来的新版请求
+                if (!req.key.empty()) 
+                {
+                    LogHeader* logheader = reinterpret_cast<LogHeader*>(target);
+                    logheader->type = req.type;
+                    logheader->key_len = req.key.size();
+                    logheader->val_len = req.val.size();
+                    
+                    memcpy(target + sizeof(LogHeader), req.key.data(), logheader->key_len);
+                    memcpy(target + sizeof(LogHeader) + logheader->key_len, req.val.data(), logheader->val_len);
+                    
+                    entry_size = sizeof(LogHeader) + req.key.size() + req.val.size();
+                } 
+                // 兼容旧版直接传 AlignedBuffer 的请求
+                else 
+                {
+                    memcpy(target, req.buf.data(), req.buf.size());
+                    entry_size = req.buf.size();
+                }
+                
+                // 更新索引
+                uint64_t fasthash = FastHash(req.key); 
+                index_.put(fasthash, (uint64_t)(write_pos_start + current_offset_in_group), (uint32_t)entry_size);
+                current_offset_in_group += entry_size;
             }
 
             size_t aligned_size = (current_offset_in_group + 4095) & ~4095;
             current_offset_ += aligned_size;
 
-            // 3. 提交 IO：传指针，传 batch 引用
+            // 提交 IO：传指针，传 batch 引用
             ctx_.SubmitWrite(fd_, group_commit_buffer_.data(), aligned_size, write_pos_start, write_batch);
 
             write_batch.clear();
