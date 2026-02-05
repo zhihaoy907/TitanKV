@@ -19,10 +19,10 @@ TLB Miss: 在高内存占用下，使用默认的 4KB 页表会导致 CPU 的 TL
 主要应用于 批量提交 的内存映射。
 
 ## 3. 基准测试结果
-** 不使用大页 **
+** 使用大页 **
 <img width="1561" height="404" alt="image" src="https://github.com/user-attachments/assets/a54d031e-df52-4245-98ff-de83363dccfe" />
 
-** 使用大页 **
+** 不使用大页 **
 <img width="1544" height="407" alt="image" src="https://github.com/user-attachments/assets/6e269881-46cf-429e-9689-56d91e71c452" />
 
 ## 4. 结论
@@ -33,3 +33,4 @@ TLB Miss: 在高内存占用下，使用默认的 4KB 页表会导致 CPU 的 TL
 **吞吐量提升**：系统整体 IOPS 从 5.4 万提升至 6.3 万，增幅达 17.2%。
 
 **延迟降低**：平均单次操作耗时从 18.4 微秒缩短至 15.7 微秒，降低了 14.7%。
+
