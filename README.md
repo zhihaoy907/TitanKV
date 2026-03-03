@@ -17,12 +17,6 @@
 
 3、无锁SPSC队列：实现基于io_uring的SPSC的功能开发将IO的时间从**1.81秒降低至1.47秒**，详情见test目录的test_SPSCQueue.cpp。
 
-**与RocksDB数据库引擎的对比**：
-
-在与100% 随机写入、4KB Payload、强一致性落盘、SPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 4.186 倍**，详情见docs/titankv_vs_rocksdb_spsc.md。
-
-在与100% 随机写入、4KB Payload、强一致性落盘、MPSC架构下，**TitanKV 的吞吐量约 4.4k IOPS，是 RocksDB数据库引擎 的 2.49 倍**，详情见docs/titankv_vs_rocksdb_mpsc.md。
-
 **性能优化演进**
 
 通过以下几个阶段，在vmware+ubuntu 22.04 的四核两程场景中将总耗时从 **1.47秒降低至0.9秒**，相较于上面的5.1秒，**时间减少82.35%，整体IO性能提升567%**。
