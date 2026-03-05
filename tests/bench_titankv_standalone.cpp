@@ -71,18 +71,19 @@ void bench_titankv()
 
     auto start = std::chrono::high_resolution_clock::now();
 
+    std::vector<std::string> keys(TOTAL_OPS);
+    for(int i=0; i<TOTAL_OPS; ++i) 
+        keys[i] = "key_" + std::to_string(i);
+
     // 启动 Client 线程
     for (int t = 0; t < NUM_THREADS; ++t) 
     {
-        threads.emplace_back([&, t]() {
+        threads.emplace_back([&, t]() 
+        {
             for (int i = 0; i < NUM_KEYS_PER_THREAD; ++i) 
             {
-                std::string key = "key_" + std::to_string(t) + "_" + std::to_string(i);
-                
-                AlignedBuffer req_buf(VALUE_SIZE);
-                std::memcpy(req_buf.data(), template_buf.data(), VALUE_SIZE);
-                
-                db.Put(key, value_str, [&](int){
+                int global_idx = t * NUM_KEYS_PER_THREAD + i;
+                db.Put(keys[global_idx], value_str, [&](int){
                     completed_count.fetch_add(1, std::memory_order_relaxed);
                 });
             }
